@@ -48,14 +48,23 @@ export function MovingTabIndicator({ index, width, height, dark }: { index: numb
 export function useModalMotion(onClose: () => void, canClose = true) {
   const reduced = useMotionDisabled();
   const progress = useSharedValue(reduced ? 1 : 0);
+  // A native dialog can attach after the React mount effect. Its content must
+  // already be visible even if an entry animation/event has not run yet.
+  const opacity = useSharedValue(1);
+  const shown = useRef(false);
   const closing = useRef(false);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (reduced && closing.current) { onCloseRef.current(); closing.current = false; }
-    progress.set(reduced ? 1 : withTiming(1, { duration: 180 }));
+    if (reduced) progress.set(1);
   }, [progress, reduced]);
-  const style = useAnimatedStyle(() => ({ opacity: progress.get(), transform: [{ translateY: (1 - progress.get()) * 12 }, { scale: 0.985 + progress.get() * 0.015 }] }));
+  const show = () => {
+    if (shown.current || closing.current) return;
+    shown.current = true;
+    progress.set(reduced ? 1 : withTiming(1, { duration: 180 }));
+  };
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get(), transform: [{ translateY: (1 - progress.get()) * 12 }, { scale: 0.985 + progress.get() * 0.015 }] }));
   const finish = () => onCloseRef.current();
   const close = () => {
     // Dirty forms request a discard confirmation inside this same modal.
@@ -64,9 +73,9 @@ export function useModalMotion(onClose: () => void, canClose = true) {
     if (closing.current) return;
     closing.current = true;
     if (reduced) finish();
-    else progress.set(withTiming(0, { duration: 120 }, done => { if (done) runOnJS(finish)(); }));
+    else opacity.set(withTiming(0, { duration: 120 }, done => { if (done) runOnJS(finish)(); }));
   };
-  return { style, close };
+  return { style, close, show };
 }
 
 export function DensityTransition({ columns, children }: { columns: number; children: React.ReactNode }) {
