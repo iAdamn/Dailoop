@@ -33,7 +33,7 @@ export function ActivityForm({ activity, activities, onClose, submit }: { activi
       onClose();
     } catch (e) { setError(message(e)); } finally { setSaving(false); }
   };
-  return <ModalFrame title={activity ? 'Editar actividad' : 'Una nueva actividad'} subtitle="Ponle nombre a eso que quieres recordar." onClose={() => dirty && !saving ? setDiscard(true) : !saving && onClose()}>
+  return <ModalFrame canClose={!dirty && !saving} title={activity ? 'Editar actividad' : 'Una nueva actividad'} subtitle="Ponle nombre a eso que quieres recordar." onClose={() => dirty && !saving ? setDiscard(true) : !saving && onClose()}>
     {discard ? <Discard onDiscard={onClose} onContinue={() => setDiscard(false)} /> : <>
       <Field label="Nombre de la actividad" value={name} onChangeText={setName} placeholder="Por ejemplo, leer un rato" autoFocus autoCapitalize="sentences" hint="Hasta 80 caracteres visibles. El nombre puede repetirse." />
       {duplicate && <Label small strong>Ya existe una actividad con este nombre. Puedes guardar otra: tendrá su propio historial.</Label>}
@@ -80,7 +80,7 @@ export function EntryForm({ activity, entry, nowMs, zone, onClose, submit }: { a
       onClose();
     } catch (e) { setError(message(e)); } finally { setSaving(false); }
   };
-  return <ModalFrame title={entry ? 'Corregir registro' : 'Registrar otra fecha'} subtitle={`${activity.emoji} ${activity.name}`} onClose={() => dirty && !saving ? setDiscard(true) : !saving && onClose()}>
+  return <ModalFrame canClose={!dirty && !saving} title={entry ? 'Corregir registro' : 'Registrar otra fecha'} subtitle={`${activity.emoji} ${activity.name}`} onClose={() => dirty && !saving ? setDiscard(true) : !saving && onClose()}>
     {discard ? <Discard onDiscard={onClose} onContinue={() => setDiscard(false)} /> : <>
       <Label small>Zona de la fecha introducida: {zone}</Label>
       <Field label="Fecha (AAAA-MM-DD)" value={date} onChangeText={v => { setDate(v); setChoice(null); setReview(false); }} placeholder="2026-10-12" autoCapitalize="none" />

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dailoop",
     "slug": "dailoop",
-    "version": "0.1.0",
+    "version": "0.1.5",
     "scheme": "dailoop",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
@@ -23,12 +23,13 @@
         "android.permission.VIBRATE",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android/adaptive-foreground.png",
         "backgroundImage": "./assets/android/adaptive-background.png",
         "backgroundColor": "#F7F7FC"
-      }
+      },
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",

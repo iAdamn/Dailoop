@@ -1,0 +1,36 @@
+{
+  "recipe": "Rasterized palette-only rounded GlowRamp: 60 concentric layers, original peak density and dimensions, final alpha rounded once. No original brand PNG is modified.",
+  "generator": "scripts/generate-ambient-assets.mjs",
+  "files": [
+    {
+      "file": "violet-light.png",
+      "bytes": 67993,
+      "sha256": "88bc0400c6823a3a8988abd7bcec46deaeb4a9aacdcb76ca88f77df189e3698e"
+    },
+    {
+      "file": "violet-dark.png",
+      "bytes": 81305,
+      "sha256": "5ac7d7206f7cf3b2fd0c336c06fb6d6408e05a2e3f294ab2d3f19e31b9bc4533"
+    },
+    {
+      "file": "sky-light.png",
+      "bytes": 81767,
+      "sha256": "7402e79099ca2c4ee869f73aea768836cf0dbbaaaf606ce51fc3dcb0c5409369"
+    },
+    {
+      "file": "sky-dark.png",
+      "bytes": 71150,
+      "sha256": "206f59fe5dfb904698819db1c95a5c2240960d2ee6cc9537c49ec265d81f5f26"
+    },
+    {
+      "file": "lilac-light.png",
+      "bytes": 66527,
+      "sha256": "3b8d5ab4a33aab9dae0401baf6ffae5c38a053dd71fb6609ade6857bcd16e051"
+    },
+    {
+      "file": "lilac-dark.png",
+      "bytes": 56451,
+      "sha256": "2e67cc53e772402ec388b37e771d694eadb0f799f3d5cc26a7d6f397d5bc8f09"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../version';
 import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
@@ -183,7 +184,7 @@ export class DailoopStore {
     });
   }
   report(options:ReportOptions){ return this.serial(async()=>buildReport(await readSnapshot(this.db),options)); }
-  backup(){ return this.serial(async()=>exportBackup(await readSnapshot(this.db),{backupId:uuid(),exportedAtMs:this.clock(),appVersion:'0.1.0'},digest)); }
+  backup(){ return this.serial(async()=>exportBackup(await readSnapshot(this.db),{backupId:uuid(),exportedAtMs:this.clock(),appVersion:APP_VERSION},digest)); }
   inspect(text:string){ return parseBackup(text,digest); }
   restore(candidate:ParsedBackup) {
     return this.serial(async()=>{

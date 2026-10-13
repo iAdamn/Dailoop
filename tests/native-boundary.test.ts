@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../src/version';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -16,6 +17,7 @@ const digest=async(value:string)=>createHash('sha256').update(value).digest('hex
 function loadModule(path:string,dependencies:Record<string,unknown>,globals:Record<string,unknown>={}){
   const source=ts.transpileModule(readFileSync(join(process.cwd(),path),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const module={exports:{} as any};
+  dependencies = { '../version': { APP_VERSION }, ...dependencies };
   new Function('require','module','exports','globalThis','Intl',source)((name:string)=>{
     if(!(name in dependencies))throw new Error(`Unexpected dependency: ${name}`);
     return dependencies[name];

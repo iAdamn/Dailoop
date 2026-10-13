@@ -1,1 +1,1 @@
-module.exports = { preset:'jest-expo', testMatch:['**/tests/*.test.tsx'], modulePathIgnorePatterns:['<rootDir>/dist/'] };
+module.exports = { preset:'jest-expo', testMatch:['**/tests/*.test.tsx'], setupFilesAfterEnv:['<rootDir>/scripts/jest-motion-setup.js'], modulePathIgnorePatterns:['<rootDir>/dist/'] };

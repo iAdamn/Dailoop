@@ -52,15 +52,19 @@ export function StatsScreen({ state, nowMs, openReport }: { state: DomainState; 
   const [period, setPeriod] = useState(() => periodFor('week', localDate(nowMs, state.settings.zone), state.settings.zone, nowMs));
   const [selected, setSelected] = useState<string[] | null>(null);
   const [filters, setFilters] = useState(false);
-  const activities = selectActivities(state, { includeArchived: true });
+  const activities = useMemo(() => selectActivities(state, { includeArchived: true }), [state]);
   const normalized = useMemo(() => makePeriod({ ...period, zone: state.settings.zone, nowMs }), [period, state.settings.zone, nowMs]);
-  const stats = computeStats(state, normalized, nowMs, selected || undefined);
-  const entries = effectiveEntries(state, { fromMs: normalized.startMs, toMs: normalized.endMs, activityIds: selected || undefined });
-  const buckets = new Map<string, number>();
-  for (const entry of entries) {
-    const key = normalized.kind === 'day' ? new Intl.DateTimeFormat('es-CO', { hour: '2-digit', hourCycle: 'h23', timeZone: normalized.zone }).format(entry.revision.occurredAtMs) + ':00' : localDate(entry.revision.occurredAtMs, normalized.zone);
-    buckets.set(key, (buckets.get(key) || 0) + 1);
-  }
+  const stats = useMemo(() => computeStats(state, normalized, nowMs, selected || undefined), [state, normalized, nowMs, selected]);
+  const entries = useMemo(() => effectiveEntries(state, { fromMs: normalized.startMs, toMs: normalized.endMs, activityIds: selected || undefined }), [state, normalized.startMs, normalized.endMs, selected]);
+  const buckets = useMemo(() => {
+    const values = new Map<string, number>();
+    const hours = normalized.kind === 'day' ? new Intl.DateTimeFormat('es-CO', { hour: '2-digit', hourCycle: 'h23', timeZone: normalized.zone }) : null;
+    for (const entry of entries) {
+      const key = hours ? hours.format(entry.revision.occurredAtMs) + ':00' : localDate(entry.revision.occurredAtMs, normalized.zone);
+      values.set(key, (values.get(key) || 0) + 1);
+    }
+    return values;
+  }, [entries, normalized.kind, normalized.zone]);
   const max = Math.max(...buckets.values(), 1);
   const counts = new Map(stats.perActivity.map(a => [a.activityId, a.count]));
   return <View style={s.stack}>

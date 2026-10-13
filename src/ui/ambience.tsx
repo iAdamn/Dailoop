@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { memo } from 'react';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { alpha, palette } from './tokens';
 
@@ -11,17 +11,23 @@ function GlowRamp({ color, peakOpacity, maxInset }: { color: string; peakOpacity
 }
 
 /** Soft color fields behind the transparent UI, shared by web and native renderers. */
-export function AmbientBackground({ dark }: { dark: boolean }) {
+export const AmbientBackground = memo(function AmbientBackground({ dark }: { dark: boolean }) {
   return <View pointerEvents="none" accessible={false} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.scene}>
     <LinearGradient colors={dark ? [palette.ink, palette.ink, palette.ink] : [palette.base, alpha(palette.lavender, 0.46), palette.base]} locations={[0, 0.56, 1]} style={StyleSheet.absoluteFill} />
     <View style={styles.fields}>
-      {/* Preserve the calibrated peak density; new samples keep floating-point opacity. */}
+      {Platform.OS !== 'web' ? <>
+        <Image accessible={false} source={dark ? require('../../assets/ambient/violet-dark.png') : require('../../assets/ambient/violet-light.png')} style={[styles.orb, styles.violet]} />
+        <Image accessible={false} source={dark ? require('../../assets/ambient/sky-dark.png') : require('../../assets/ambient/sky-light.png')} style={[styles.orb, styles.sky]} />
+        <Image accessible={false} source={dark ? require('../../assets/ambient/lilac-dark.png') : require('../../assets/ambient/lilac-light.png')} style={[styles.orb, styles.lilac]} />
+      </> : <>
+      {/* Web keeps the approved floating-point ramp; native samples three cached textures. */}
       <View style={[styles.orb, styles.violet]}><GlowRamp color={palette.violet} peakOpacity={1 - Math.pow(1 - (dark ? 9 : 6) / 255, 18)} maxInset={153} /></View>
       <View style={[styles.orb, styles.sky]}><GlowRamp color={palette.sky} peakOpacity={1 - Math.pow(1 - (dark ? 9 : 14) / 255, 18)} maxInset={136} /></View>
       <View style={[styles.orb, styles.lilac]}><GlowRamp color={palette.lilac} peakOpacity={1 - Math.pow(1 - (dark ? 7 : 10) / 255, 16)} maxInset={135} /></View>
+      </>}
     </View>
   </View>;
-}
+});
 
 const styles = StyleSheet.create({
   scene: { ...StyleSheet.absoluteFill, overflow: 'hidden' },

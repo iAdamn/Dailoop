@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../version';
 import { Platform } from 'react-native';
 import { getCalendars } from 'expo-localization';
 import {createEmptyState,exportBackup,type DomainState} from '../domain';
@@ -95,7 +96,7 @@ class Session {
       if(this.snapshot.recoveryRequired||this.store?.recoveryRequired)throw new Error(RECOVERY_MESSAGE);
       if(this.snapshot.readOnly||this.snapshot.mode!=='demo'||this.store?.mode!=='demo')throw new Error('Sólo se puede reiniciar la base de demostración abierta.');
       const now=Date.now();const state=createEmptyState({databaseId:uuid(),nowMs:now,zone:this.snapshot.state!.settings.zone});
-      const text=await exportBackup(state,{backupId:uuid(),exportedAtMs:now,appVersion:'0.1.0'},digest);
+      const text=await exportBackup(state,{backupId:uuid(),exportedAtMs:now,appVersion:APP_VERSION},digest);
       await this.store.restore(await this.store.inspect(text));await this.seedDemo();await this.refresh();
     };
     const next=this.modeQueue.then(work,work);this.modeQueue=next.catch(()=>{});return next;

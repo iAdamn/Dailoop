@@ -4,6 +4,7 @@ import { type Period, type PeriodKind } from './types';
 import { assertTime, assertZone, DomainError, invariant } from './validation';
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
+const dayBoundaries = new Map<string, number>();
 function formatter(zone: string): Intl.DateTimeFormat {
   let value = formatters.get(zone);
   if (!value) { assertZone(zone); value = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }); formatters.set(zone, value); }
@@ -58,10 +59,18 @@ export function resolveLocalDateTime(local: string, zone: string, disambiguation
   return disambiguation === 'later' ? candidates[candidates.length - 1] : candidates[0];
 }
 export function startOfLocalDay(date: string, zone: string): number {
-  parseDate(date); const midnight = localDateTimeCandidates(`${date}T00:00`, zone);
-  if (midnight.length) return midnight[0];
+  parseDate(date); assertZone(zone);
+  const key = `${zone}\0${date}`;
+  const cached = dayBoundaries.get(key);
+  if (cached !== undefined) return cached;
+  const remember = (value: number) => {
+    if (dayBoundaries.size >= 512) dayBoundaries.delete(dayBoundaries.keys().next().value!);
+    dayBoundaries.set(key, value); return value;
+  };
+  const midnight = localDateTimeCandidates(`${date}T00:00`, zone);
+  if (midnight.length) return remember(midnight[0]);
   // Some IANA zones advance at midnight. The first valid minute is the day's boundary.
-  for (let minute = 1; minute < 1440; minute++) { const matches = localDateTimeCandidates(`${date}T${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`, zone); if (matches.length) return matches[0]; }
+  for (let minute = 1; minute < 1440; minute++) { const matches = localDateTimeCandidates(`${date}T${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`, zone); if (matches.length) return remember(matches[0]); }
   throw new DomainError('nonexistent_date', 'Este día no existe en la zona horaria elegida.');
 }
 export function makePeriod(input: { from: string; to: string; zone: string; kind?: PeriodKind; nowMs: number }): Period {
