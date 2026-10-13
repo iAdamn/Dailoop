@@ -1,0 +1,9 @@
+{
+  "policy": "Originales preservados byte por byte. Sin derivados Android todavía.",
+  "source": "../Dailoop-Handoff/assets/manifest.json",
+  "assets": [
+    {"file":"dailoop-brand-board.png","bytes":1430995,"sha256":"66e307c8e045b5839cd71f682aa4de50184ce3f81325e4b0c0590efe19683a7a","width":1448,"height":1086,"original":true},
+    {"file":"dailoop-app-icon.png","bytes":1255896,"sha256":"c2018daf21e911f73331b640bb1ca13dcff009c13d3cdec58b4aac72a9db8989","width":1254,"height":1254,"original":true},
+    {"file":"dailoop-glyph.png","bytes":613523,"sha256":"ec087f2a222400985ff93d3a9ed646ba13eed0f4cde1c04413f93911b74f9303","width":1254,"height":1254,"original":true}
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Dailoop",
+    "slug": "dailoop",
+    "version": "0.1.0",
+    "scheme": "dailoop",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "primaryColor": "#6F5BFF",
+    "icon": "./assets/android/icon.png",
+    "updates": {
+      "enabled": false
+    },
+    "android": {
+      "package": "local.dailoop.personal",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android/adaptive-foreground.png",
+        "backgroundImage": "./assets/android/adaptive-background.png",
+        "backgroundColor": "#F7F7FC"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/dailoop-app-icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/android/splash.png",
+          "imageWidth": 160,
+          "backgroundColor": "#F7F7FC",
+          "dark": {
+            "image": "./assets/android/splash.png",
+            "backgroundColor": "#23263A"
+          }
+        }
+      ],
+      "./plugins/withAndroidRelease.cjs"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

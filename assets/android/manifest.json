@@ -1,0 +1,574 @@
+{
+  "schemaVersion": 1,
+  "command": "node scripts/generate-android-assets.mjs",
+  "scriptSha256": "1f122d70b14fe4c63fb4e3535e0622751098d1f785daf483e084728f76cd4f01",
+  "toolchain": {
+    "nodeMajor": 24,
+    "imageUtils": "0.11.6",
+    "jimpCompact": "0.16.1",
+    "pngjs": "3.4.0",
+    "resizeKernel": "bicubicInterpolation"
+  },
+  "policy": "Original hashes verified before and after. Whole-image uniform resizing and transparent padding only. No source crop, color replacement, drawing, cleanup, rotation, or added shadow. Source low-alpha halos are retained.",
+  "adaptiveGeometry": {
+    "layerDp": 108,
+    "safeSquareDp": 66,
+    "viewportDp": 72,
+    "layerPixels": 1024,
+    "contentPixels": 625,
+    "reviewMaskChecks": [
+      {
+        "mask": "circle",
+        "clippedVisiblePixels": 0,
+        "clippedFaintPixels": 725
+      },
+      {
+        "mask": "squircle",
+        "clippedVisiblePixels": 0,
+        "clippedFaintPixels": 0
+      },
+      {
+        "mask": "square",
+        "clippedVisiblePixels": 0,
+        "clippedFaintPixels": 0
+      }
+    ]
+  },
+  "sources": {
+    "dailoop-app-icon.png": {
+      "sha256": "c2018daf21e911f73331b640bb1ca13dcff009c13d3cdec58b4aac72a9db8989",
+      "bytes": 1255896,
+      "width": 1254,
+      "height": 1254,
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 7,
+          "right": 1235,
+          "bottom": 1253,
+          "width": 1236,
+          "height": 1247,
+          "pixels": 1037792
+        },
+        "16": {
+          "left": 106,
+          "top": 123,
+          "right": 1148,
+          "bottom": 1129,
+          "width": 1043,
+          "height": 1007,
+          "pixels": 1007996
+        },
+        "128": {
+          "left": 107,
+          "top": 124,
+          "right": 1147,
+          "bottom": 1128,
+          "width": 1041,
+          "height": 1005,
+          "pixels": 1004898
+        },
+        "250": {
+          "left": 108,
+          "top": 125,
+          "right": 1146,
+          "bottom": 1127,
+          "width": 1039,
+          "height": 1003,
+          "pixels": 998124
+        }
+      }
+    },
+    "dailoop-glyph.png": {
+      "sha256": "ec087f2a222400985ff93d3a9ed646ba13eed0f4cde1c04413f93911b74f9303",
+      "bytes": 613523,
+      "width": 1254,
+      "height": 1254,
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 1239,
+          "bottom": 1253,
+          "width": 1240,
+          "height": 1254,
+          "pixels": 461164
+        },
+        "16": {
+          "left": 216,
+          "top": 209,
+          "right": 1090,
+          "bottom": 1043,
+          "width": 875,
+          "height": 835,
+          "pixels": 419138
+        },
+        "128": {
+          "left": 216,
+          "top": 210,
+          "right": 1089,
+          "bottom": 1042,
+          "width": 874,
+          "height": 833,
+          "pixels": 415693
+        },
+        "250": {
+          "left": 217,
+          "top": 211,
+          "right": 1088,
+          "bottom": 1041,
+          "width": 872,
+          "height": 831,
+          "pixels": 407556
+        }
+      }
+    }
+  },
+  "generated": [
+    {
+      "file": "icon.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 803370,
+      "sha256": "7eb34548b644221e8c6b8f314f11111f0fdd5465a624d14f14843edca8557bc8",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 14,
+          "right": 1002,
+          "bottom": 1001,
+          "width": 1003,
+          "height": 988,
+          "pixels": 685619
+        },
+        "16": {
+          "left": 87,
+          "top": 101,
+          "right": 938,
+          "bottom": 922,
+          "width": 852,
+          "height": 822,
+          "pixels": 672934
+        },
+        "128": {
+          "left": 87,
+          "top": 102,
+          "right": 937,
+          "bottom": 922,
+          "width": 851,
+          "height": 821,
+          "pixels": 671125
+        },
+        "250": {
+          "left": 88,
+          "top": 103,
+          "right": 937,
+          "bottom": 921,
+          "width": 850,
+          "height": 819,
+          "pixels": 665984
+        }
+      },
+      "source": "dailoop-app-icon.png",
+      "operation": "Whole 1254x1254 original resized to 1024x1024, alpha retained."
+    },
+    {
+      "file": "adaptive-foreground.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 289452,
+      "sha256": "54cc2854ff0b034d67c33da407edece4f48035d8ce3c68ff42dedfc39e7422ad",
+      "alphaBounds": {
+        "1": {
+          "left": 199,
+          "top": 207,
+          "right": 811,
+          "bottom": 810,
+          "width": 613,
+          "height": 604,
+          "pixels": 257085
+        },
+        "16": {
+          "left": 252,
+          "top": 260,
+          "right": 771,
+          "bottom": 762,
+          "width": 520,
+          "height": 503,
+          "pixels": 251064
+        },
+        "128": {
+          "left": 252,
+          "top": 261,
+          "right": 771,
+          "bottom": 761,
+          "width": 520,
+          "height": 501,
+          "pixels": 250227
+        },
+        "250": {
+          "left": 253,
+          "top": 262,
+          "right": 770,
+          "bottom": 761,
+          "width": 518,
+          "height": 500,
+          "pixels": 247745
+        }
+      },
+      "source": "dailoop-app-icon.png",
+      "operation": "Whole original contained in the central safe square of a transparent 108dp layer.",
+      "contentSize": 625,
+      "normalizedContentDp": 65.91796875,
+      "padding": {
+        "left": 199,
+        "top": 199,
+        "right": 200,
+        "bottom": 200
+      }
+    },
+    {
+      "file": "adaptive-background.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 5860,
+      "sha256": "ea152f3059f73142546d2d164b74bb12b694a2e47d04f7a94798988def929597",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 1023,
+          "width": 1024,
+          "height": 1024,
+          "pixels": 1048576
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 1023,
+          "width": 1024,
+          "height": 1024,
+          "pixels": 1048576
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 1023,
+          "width": 1024,
+          "height": 1024,
+          "pixels": 1048576
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 1023,
+          "width": 1024,
+          "height": 1024,
+          "pixels": 1048576
+        }
+      },
+      "source": null,
+      "operation": "Opaque approved surface.base token.",
+      "backgroundColor": "#F7F7FC"
+    },
+    {
+      "file": "splash.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 455680,
+      "sha256": "8d24db2a2c0815bcb153c6db096b995fc039c2450c5551a9e66b0e75270f5bc1",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 953,
+          "bottom": 984,
+          "width": 954,
+          "height": 985,
+          "pixels": 293115
+        },
+        "16": {
+          "left": 176,
+          "top": 171,
+          "right": 890,
+          "bottom": 852,
+          "width": 715,
+          "height": 682,
+          "pixels": 280233
+        },
+        "128": {
+          "left": 177,
+          "top": 172,
+          "right": 890,
+          "bottom": 852,
+          "width": 714,
+          "height": 681,
+          "pixels": 277488
+        },
+        "250": {
+          "left": 177,
+          "top": 172,
+          "right": 889,
+          "bottom": 851,
+          "width": 713,
+          "height": 680,
+          "pixels": 271867
+        }
+      },
+      "source": "dailoop-glyph.png",
+      "operation": "Whole 1254x1254 glyph resized to 1024x1024, alpha retained. Use contain, with base/ink splash background."
+    },
+    {
+      "file": "evidence/mask-circle.png",
+      "width": 683,
+      "height": 683,
+      "bytes": 287377,
+      "sha256": "521c3e3b9ed0006666d98bb111fab91cdfb21e042309f89a07bfdd877edcc8bc",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 367385
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 367385
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 366433
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 365417
+        }
+      },
+      "reviewOnly": true,
+      "mask": "circle",
+      "viewportDp": 72,
+      "clippedVisiblePixels": 0,
+      "clippedFaintPixels": 725
+    },
+    {
+      "file": "evidence/mask-squircle.png",
+      "width": 683,
+      "height": 683,
+      "bytes": 285014,
+      "sha256": "9446991e38ec0918a4b6b23f24c2b485c2116b782442b93b22c462b3f7cc78e0",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 433281
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 433281
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 432641
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 431581
+        }
+      },
+      "reviewOnly": true,
+      "mask": "squircle",
+      "viewportDp": 72,
+      "clippedVisiblePixels": 0,
+      "clippedFaintPixels": 0
+    },
+    {
+      "file": "evidence/mask-square.png",
+      "width": 683,
+      "height": 683,
+      "bytes": 280315,
+      "sha256": "0ca4c719317f23ba1f9e440103ced1586898d2ce9fdbb343a1f5a33cabdab416",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 466489
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 466489
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 466489
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 682,
+          "bottom": 682,
+          "width": 683,
+          "height": 683,
+          "pixels": 466489
+        }
+      },
+      "reviewOnly": true,
+      "mask": "square",
+      "viewportDp": 72,
+      "clippedVisiblePixels": 0,
+      "clippedFaintPixels": 0
+    },
+    {
+      "file": "evidence/mask-sheet.png",
+      "width": 1024,
+      "height": 640,
+      "bytes": 284949,
+      "sha256": "e3f9ebd51933be8c7f1b4227abb831acf552907296e5163fcb7eecc551a1aeab",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 639,
+          "width": 1024,
+          "height": 640,
+          "pixels": 655360
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 639,
+          "width": 1024,
+          "height": 640,
+          "pixels": 655360
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 639,
+          "width": 1024,
+          "height": 640,
+          "pixels": 655360
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 1023,
+          "bottom": 639,
+          "width": 1024,
+          "height": 640,
+          "pixels": 655360
+        }
+      },
+      "reviewOnly": true,
+      "layout": "Columns: circle, squircle, square. Rows: surface.base, ink."
+    },
+    {
+      "file": "evidence/splash-sheet.png",
+      "width": 720,
+      "height": 360,
+      "bytes": 35911,
+      "sha256": "7c6527e32f7a254d9fb91c6984efa7360394431d2a9eeefe90c25eb67f8c5033",
+      "alphaBounds": {
+        "1": {
+          "left": 0,
+          "top": 0,
+          "right": 719,
+          "bottom": 359,
+          "width": 720,
+          "height": 360,
+          "pixels": 259200
+        },
+        "16": {
+          "left": 0,
+          "top": 0,
+          "right": 719,
+          "bottom": 359,
+          "width": 720,
+          "height": 360,
+          "pixels": 259200
+        },
+        "128": {
+          "left": 0,
+          "top": 0,
+          "right": 719,
+          "bottom": 359,
+          "width": 720,
+          "height": 360,
+          "pixels": 259200
+        },
+        "250": {
+          "left": 0,
+          "top": 0,
+          "right": 719,
+          "bottom": 359,
+          "width": 720,
+          "height": 360,
+          "pixels": 259200
+        }
+      },
+      "reviewOnly": true,
+      "layout": "Original violet glyph on surface.base and ink, 200px image width."
+    }
+  ],
+  "pending": [
+    "Physical Android launcher masks/parallax and splash must be checked on the release APK.",
+    "No monochrome layer: preserving the original colored mark without a new silhouette."
+  ]
+}

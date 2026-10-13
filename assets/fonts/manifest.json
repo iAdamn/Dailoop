@@ -1,0 +1,48 @@
+{
+  "license": "OFL-1.1",
+  "policy": "Static TTF files copied byte-for-byte; no outlines modified; local bundling, no runtime CDN.",
+  "outfit": {
+    "package": "@expo-google-fonts/outfit",
+    "version": "0.4.3",
+    "source": "https://registry.npmjs.org/@expo-google-fonts/outfit/-/outfit-0.4.3.tgz",
+    "license": "Outfit-OFL.txt"
+  },
+  "manrope": {
+    "package": "@expo-google-fonts/manrope",
+    "version": "0.4.2",
+    "source": "https://registry.npmjs.org/@expo-google-fonts/manrope/-/manrope-0.4.2.tgz",
+    "license": "Manrope-OFL.txt"
+  },
+  "files": [
+    {
+      "file": "Manrope-Bold.ttf",
+      "bytes": 96800,
+      "sha256": "4aed5d180a4f41ed21f07e678486f889bb40eb0ddf5f473769b6302f507d1e36"
+    },
+    {
+      "file": "Manrope-Medium.ttf",
+      "bytes": 96904,
+      "sha256": "88d3f8ef004b53483a202772d09acaab17ca99dd41905d9b4ab07ac635632378"
+    },
+    {
+      "file": "Manrope-Regular.ttf",
+      "bytes": 96832,
+      "sha256": "6383bd9f81e56d61139884d8e42cb7b2146a11dde4efde55c8bff1e4c2c0bbe8"
+    },
+    {
+      "file": "Manrope-SemiBold.ttf",
+      "bytes": 96936,
+      "sha256": "abbefa1f58c7355b663c19f29ffe4cd7fc8c93a9e5f8b68f08d1e9ba2bc4ba0d"
+    },
+    {
+      "file": "Outfit-Bold.ttf",
+      "bytes": 55392,
+      "sha256": "6654b93d21301ec61887d3cedd6c11d9df1b1dfb63f9cf45ac7995f6e2235ab1"
+    },
+    {
+      "file": "Outfit-SemiBold.ttf",
+      "bytes": 55492,
+      "sha256": "030d373c4e2a67d5e922a2694e1eaab3b9f1208f1301dba94a70bdebf52c1efa"
+    }
+  ]
+}
