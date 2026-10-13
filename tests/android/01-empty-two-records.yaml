@@ -1,0 +1,46 @@
+# Requires the coordinator's clean install on the disposable emulator-5580.
+# Does not clear application data; a non-empty initial state fails visibly.
+appId: local.dailoop.personal
+name: Offline first launch, two records and force-stop persistence
+---
+- launchApp:
+    permissions:
+      all: deny
+- extendedWaitUntil:
+    visible: "Crear mi primera actividad"
+    timeout: 30000
+- takeScreenshot: 01-clean-offline-home
+- tapOn: "Crear mi primera actividad"
+- takeScreenshot: 01b-new-activity-keyboard
+- tapOn: "Nombre de la actividad"
+- inputText: "Lectura Android QA"
+- hideKeyboard
+- tapOn: "Usar emoji .*libro leer lectura"
+- scrollUntilVisible:
+    element: "Crear actividad"
+    direction: DOWN
+- tapOn:
+    text: "Crear actividad"
+    enabled: true
+- assertVisible: "Registrar Lectura Android QA"
+- tapOn: "Registrar Lectura Android QA"
+- assertVisible: ".*Registrado: Lectura Android QA.*"
+- tapOn:
+    text: "Registrar Lectura Android QA"
+    enabled: true
+- tapOn: "Ver detalle de Lectura Android QA"
+- scrollUntilVisible:
+    element: "2 registros en esta vista"
+    direction: DOWN
+- assertVisible: "2 registros en esta vista"
+- takeScreenshot: 02-two-records
+- stopApp
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ver detalle de Lectura Android QA"
+- scrollUntilVisible:
+    element: "2 registros en esta vista"
+    direction: DOWN
+- assertVisible: "2 registros en esta vista"
+- takeScreenshot: 03-after-force-stop

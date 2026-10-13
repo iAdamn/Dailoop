@@ -1,0 +1,17 @@
+# Starts on the actual valid backup review. Exports after this flow establish exact state equality.
+appId: local.dailoop.personal
+name: Restore validated backup then force-stop and reopen
+---
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Confirmar reemplazo y restaurar"
+    direction: DOWN
+- tapOn: "Confirmar reemplazo y restaurar"
+- assertVisible: ".*Backup restaurado y verificado.*"
+- takeScreenshot: 16-restored-and-verified
+- stopApp
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Ver detalle de Lectura Android QA"
+- takeScreenshot: 17-restored-after-reopen

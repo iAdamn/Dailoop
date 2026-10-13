@@ -1,0 +1,26 @@
+appId: local.dailoop.personal
+name: Reject checksum-corrupt backup through real native picker
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- scrollUntilVisible:
+    element:
+      text: "native-corrupt[.]json"
+      id: "android:id/title"
+    direction: DOWN
+- tapOn:
+    text: "native-corrupt[.]json"
+    id: "android:id/title"
+- scrollUntilVisible:
+    element: ".*El archivo está dañado: checksum incorrecto[.].*"
+    direction: DOWN
+- assertVisible: ".*El archivo está dañado: checksum incorrecto[.].*"
+- assertNotVisible: "Revisar restauración"
+- takeScreenshot: 19-corrupt-backup-rejected
+- stopApp

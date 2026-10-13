@@ -1,0 +1,21 @@
+appId: local.dailoop.personal
+name: Open Android share sheet for filtered Markdown
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Estadísticas"
+- scrollUntilVisible:
+    element: "Generar reporte"
+    direction: DOWN
+- tapOn: "Generar reporte"
+- scrollUntilVisible:
+    element: "Ver vista previa"
+    direction: DOWN
+- tapOn: "Ver vista previa"
+- assertVisible: "Tu reporte está listo"
+- scrollUntilVisible:
+    element: "Compartir"
+    direction: DOWN
+- tapOn: "Compartir"
+- takeScreenshot: 32-native-share-sheet

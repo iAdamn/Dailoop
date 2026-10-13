@@ -1,0 +1,12 @@
+# Selectors observed in native-saf-folder-hierarchy.json on Android 17 DocumentsUI.
+appId: local.dailoop.personal
+name: Select Documents folder in actual Android SAF
+---
+- tapOn:
+    text: "Documents"
+    id: "android:id/title"
+- tapOn:
+    text: "USE THIS FOLDER"
+    id: "android:id/button1"
+    enabled: true
+- takeScreenshot: 11-saf-grant-confirmation

@@ -1,0 +1,44 @@
+# Requires 01/02. System save/share actions are added after provider hierarchy inspection.
+appId: local.dailoop.personal
+name: Native filtered report preview
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "＋ Nueva actividad"
+- tapOn: "Nombre de la actividad"
+- inputText: "Diario privado Android QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Actividad privada"
+    direction: DOWN
+- tapOn: "Actividad privada"
+- scrollUntilVisible:
+    element: "Crear actividad"
+    direction: DOWN
+- tapOn: "Crear actividad"
+- scrollUntilVisible:
+    element: "Registrar Diario privado Android QA"
+    direction: DOWN
+- tapOn: "Registrar Diario privado Android QA"
+- assertVisible: ".*Registrado: Diario privado Android QA.*"
+- tapOn: "Estadísticas"
+- scrollUntilVisible:
+    element: "Generar reporte"
+    direction: DOWN
+- tapOn: "Generar reporte"
+- scrollUntilVisible:
+    element: "Ver vista previa"
+    direction: DOWN
+- assertVisible: ".*0 privadas. Notas: no.*"
+- tapOn: "Ver vista previa"
+- scrollUntilVisible:
+    element: "Tu reporte está listo"
+    direction: UP
+- assertVisible: "Tu reporte está listo"
+- takeScreenshot: 07-native-report-preview
+- scrollUntilVisible:
+    element: "Guardar Markdown"
+    direction: DOWN
+- assertNotVisible: ".*NOTA_PRIVADA_QA_413.*"
+- takeScreenshot: 08-native-report-actions

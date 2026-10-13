@@ -1,0 +1,37 @@
+# Run only after all exact-payload round trips: this changes theme settings.
+# Forms are discarded without saving synthetic activities.
+appId: local.dailoop.personal
+name: Enabled native primary controls in light and dark themes
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- tapOn: "Claro"
+- tapOn: "Inicio"
+- takeScreenshot: 50-light-register-primary
+- tapOn: "＋ Nueva actividad"
+- tapOn: "Nombre de la actividad"
+- inputText: "Contraste claro QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Crear actividad"
+    direction: DOWN
+- takeScreenshot: 51-light-enabled-form-primary
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- tapOn: "Ajustes"
+- tapOn: "Oscuro"
+- tapOn: "Inicio"
+- takeScreenshot: 52-dark-register-primary
+- tapOn: "＋ Nueva actividad"
+- tapOn: "Nombre de la actividad"
+- inputText: "Contraste oscuro QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Crear actividad"
+    direction: DOWN
+- takeScreenshot: 53-dark-enabled-form-primary
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- stopApp

@@ -1,0 +1,29 @@
+# Device font_scale must be set to 2.0; no app data mutation.
+appId: local.dailoop.personal
+name: Native 200 percent text and reachable navigation
+---
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Tu día, a tu manera[.]"
+- takeScreenshot: 60-font200-home-top
+- scrollUntilVisible:
+    element: "Registrar Lectura Android QA"
+    direction: DOWN
+- assertVisible: "Registrar Lectura Android QA"
+- takeScreenshot: 61-font200-register-reachable
+- tapOn: "Historial"
+- assertVisible: "Tu historia"
+- takeScreenshot: 62-font200-history
+- tapOn: "Estadísticas"
+- assertVisible: "Tu ritmo"
+- takeScreenshot: 63-font200-statistics
+- tapOn: "Ajustes"
+- assertVisible: "Tus ajustes"
+- takeScreenshot: 64-font200-settings
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- assertVisible: "Restaurar un backup"
+- takeScreenshot: 65-font200-data-actions-reachable
+- stopApp

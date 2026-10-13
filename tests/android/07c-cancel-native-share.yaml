@@ -1,0 +1,9 @@
+# Starts on actual Android intent resolver observed in native-vc2-share-hierarchy.json.
+appId: local.dailoop.personal
+name: Cancel Android share without choosing a recipient
+---
+- assertVisible: "Sharing 1 file"
+- back
+- assertVisible: ".*El diálogo del sistema controla el envío o la cancelación[.].*"
+- takeScreenshot: 33-share-cancelled-honest-status
+- stopApp

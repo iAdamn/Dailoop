@@ -1,0 +1,9 @@
+appId: local.dailoop.personal
+name: Capture native home at 200 percent after app readiness
+---
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Tu día, a tu manera[.]"
+- takeScreenshot: 60-font200-home-ready
+- stopApp

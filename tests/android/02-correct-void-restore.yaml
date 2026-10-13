@@ -1,0 +1,70 @@
+# Requires 01-empty-two-records.yaml. Selectors must be confirmed on installed APK.
+appId: local.dailoop.personal
+name: Native audit correction, void and restore
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Historial"
+- tapOn:
+    text: "Lectura Android QA, .*registrado"
+    index: 0
+- tapOn: "Corregir registro"
+- tapOn: 'Fecha \(AAAA-MM-DD\)'
+- eraseText
+- inputText: "2026-10-10"
+- tapOn: 'Hora \(HH:mm, 24 horas\)'
+- eraseText
+- inputText: "11:17"
+- tapOn: 'Nota \(opcional\)'
+- inputText: "NOTA_PRIVADA_QA_413"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Revisar antes de guardar"
+    direction: DOWN
+- tapOn: "Revisar antes de guardar"
+- scrollUntilVisible:
+    element: "Confirmar corrección"
+    direction: DOWN
+- tapOn: "Confirmar corrección"
+- tapOn: "Lectura Android QA, .*con cambios"
+- tapOn: 'Ver cambios \(2\)'
+- scrollUntilVisible:
+    element: "2. Corregido"
+    direction: DOWN
+- takeScreenshot: 04-original-and-correction
+- tapOn: "Cerrar diálogo"
+- tapOn: "Lectura Android QA, .*con cambios"
+- tapOn: "Anular registro"
+- tapOn:
+    text: "Anular registro"
+    index: 1
+- tapOn: "Filtrar historial"
+- scrollUntilVisible:
+    element: "Mostrar registros anulados"
+    direction: DOWN
+- tapOn: "Mostrar registros anulados"
+- scrollUntilVisible:
+    element: "Lectura Android QA, .*anulado"
+    direction: DOWN
+- tapOn: "Lectura Android QA, .*anulado"
+- assertVisible: 'Ver cambios \(3\)'
+- tapOn: "Restaurar registro"
+- tapOn:
+    text: "Restaurar registro"
+    index: 1
+- tapOn: "Lectura Android QA, .*con cambios"
+- tapOn: 'Ver cambios \(4\)'
+- scrollUntilVisible:
+    element: "4. Restaurado"
+    direction: DOWN
+- assertVisible: "4. Restaurado"
+- takeScreenshot: 05-restored-audit
+- stopApp
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Historial"
+- tapOn: "Lectura Android QA, .*con cambios"
+- assertVisible: 'Ver cambios \(4\)'
+- takeScreenshot: 06-audit-after-force-stop

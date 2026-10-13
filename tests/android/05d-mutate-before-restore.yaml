@@ -1,0 +1,17 @@
+# Run exactly once. This extra occurrence must survive cancellation/rejected imports,
+# then disappear only after confirmed replacement with the earlier full backup.
+appId: local.dailoop.personal
+name: Add a distinguishable record before replacement tests
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Registrar Lectura Android QA"
+- assertVisible: ".*Registrado: Lectura Android QA.*"
+- tapOn: "Ver detalle de Lectura Android QA"
+- scrollUntilVisible:
+    element: "3 registros en esta vista"
+    direction: DOWN
+- assertVisible: "3 registros en esta vista"
+- takeScreenshot: 18-before-replacement-three-public-records
+- stopApp

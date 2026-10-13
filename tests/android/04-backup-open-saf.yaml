@@ -1,0 +1,15 @@
+# Preparation segment: intentionally stops on the real OS folder picker for hierarchy inspection.
+appId: local.dailoop.personal
+name: Open native full-backup folder picker
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Crear backup completo"
+    direction: DOWN
+- tapOn: "Crear backup completo"
+- takeScreenshot: 09-full-backup-summary
+- tapOn: "Guardar backup completo"
+- takeScreenshot: 10-real-saf-folder-picker

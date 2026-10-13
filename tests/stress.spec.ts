@@ -1,0 +1,51 @@
+import {createHash} from 'node:crypto';
+import {readFile,writeFile} from 'node:fs/promises';
+import {performance} from 'node:perf_hooks';
+import {test,expect} from '@playwright/test';
+import {exportBackup} from '../src/domain';
+import {createStressState,STRESS_NOW,stressId,STRESS_EXPECTED} from './fixtures/stress';
+
+test('50 actividades y 10000 registros: import real, lista, commit medido y reapertura sin pérdidas',async({page},info)=>{
+  test.setTimeout(240_000);
+  await page.addInitScript(value=>{Date.now=()=>value;},STRESS_NOW);
+  const state=createStressState(STRESS_NOW);
+  const backup=await exportBackup(state,{backupId:stressId(2_000_000),exportedAtMs:STRESS_NOW,appVersion:'stress-fixture/1'},async text=>createHash('sha256').update(text).digest('hex'));
+  await page.goto('/');
+  await page.getByRole('tab',{name:'Ajustes',exact:true}).click();
+  const chooser=page.waitForEvent('filechooser');
+  await page.getByRole('button',{name:'Restaurar un backup',exact:true}).click();
+  const importStart=performance.now();
+  await (await chooser).setFiles({name:'dailoop-stress.json',mimeType:'application/json',buffer:Buffer.from(backup,'utf8')});
+  await page.getByRole('button',{name:'Confirmar reemplazo y restaurar',exact:true}).click({timeout:60_000});
+  await expect(page.getByText('✓ Backup restaurado y verificado',{exact:true})).toBeVisible({timeout:120_000});
+  const importMs=performance.now()-importStart;
+  const counter=page.getByText(/\d+ registros? hoy · 50 actividades activas/);
+  await expect(counter).toBeVisible();
+  const initial=Number((await counter.innerText()).match(/^\d+/)![0]);
+  const samples:number[]=[];
+  for(let round=1;round<=10;round++){
+    const started=performance.now();
+    await page.getByRole('button',{name:'Registrar Actividad de carga 02',exact:true}).click();
+    await expect(counter).toContainText(`${initial+round} registros hoy`);
+    samples.push(performance.now()-started);
+  }
+  const reloadStart=performance.now();
+  await page.reload();
+  await expect(counter).toContainText(`${initial+10} registros hoy`,{timeout:60_000});
+  const reopenMs=performance.now()-reloadStart;
+  await page.getByRole('tab',{name:'Historial',exact:true}).click();
+  await expect(page.getByText(`${STRESS_EXPECTED.activeEntries+10} registros · Todo el historial · America/Bogota`,{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/Cargar más/}).click();
+  await page.getByRole('tab',{name:'Ajustes',exact:true}).click();
+  await page.getByRole('button',{name:'Crear backup completo',exact:true}).click();
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Guardar backup completo',exact:true}).click();
+  const final=JSON.parse(await readFile((await (await download).path())!,'utf8'));
+  expect(final.payload.entries).toHaveLength(10_010);
+  expect(final.payload.entryRevisions).toHaveLength(STRESS_EXPECTED.entryRevisions+10);
+  const sorted=[...samples].sort((a,b)=>a-b);
+  const results={platform:'Web Edge, development Metro, Windows',fixture:STRESS_EXPECTED,importMs,reopenMs,registrationMs:samples,p95Ms:sorted[Math.ceil(sorted.length*.95)-1],limitations:'Includes Playwright click, SQL commit, refresh and visible acknowledgement. Ten samples; not an Android device benchmark. Android <500ms target remains pending.'};
+  await writeFile(info.outputPath('stress-web.json'),JSON.stringify(results,null,2));
+  await info.attach('Web stress measurements',{body:JSON.stringify(results,null,2),contentType:'application/json'});
+  console.log(JSON.stringify(results));
+});

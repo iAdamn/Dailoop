@@ -1,0 +1,26 @@
+# Starts in DocumentsUI Documents. Back navigates to storage root, then closes.
+# A fresh picker returns to the remembered Documents location independently.
+appId: local.dailoop.personal
+name: Cancel document picker and cancel validated backup review
+---
+- back
+- back
+- assertVisible: "Restaurar un backup"
+- tapOn: "Restaurar un backup"
+- scrollUntilVisible:
+    element:
+      text: "native-baseline[.]json"
+      id: "android:id/title"
+    direction: DOWN
+- tapOn:
+    text: "native-baseline[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- takeScreenshot: 14-valid-backup-review
+- scrollUntilVisible:
+    element: "Cancelar sin cambiar datos"
+    direction: DOWN
+- tapOn: "Cancelar sin cambiar datos"
+- assertNotVisible: "Revisar restauración"
+- takeScreenshot: 15-restore-cancelled
+- stopApp

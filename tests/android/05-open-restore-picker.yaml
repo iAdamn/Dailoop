@@ -1,0 +1,12 @@
+appId: local.dailoop.personal
+name: Open real Android backup document picker
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- takeScreenshot: 13-real-restore-picker

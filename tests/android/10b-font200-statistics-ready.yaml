@@ -1,0 +1,11 @@
+appId: local.dailoop.personal
+name: Capture native statistics at 200 percent after tab readiness
+---
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Tu día, a tu manera[.]"
+- tapOn: "Estadísticas"
+- assertVisible: "Tu ritmo"
+- takeScreenshot: 63-font200-statistics-ready
+- stopApp

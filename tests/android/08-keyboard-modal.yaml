@@ -1,0 +1,21 @@
+# Device setting show_ime_with_hard_keyboard=1 must be enabled before this flow.
+# No activity is saved. The hierarchy/screenshot must independently prove visible IME.
+appId: local.dailoop.personal
+name: Inspect native activity form with real visible keyboard
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "＋ Nueva actividad"
+- tapOn: "Nombre de la actividad"
+- inputText: "Teclado visible QA"
+- takeScreenshot: 40-visible-ime-and-form
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Crear actividad"
+    direction: DOWN
+- assertVisible: "Crear actividad"
+- takeScreenshot: 41-keyboard-dismissed-reachable-actions
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- stopApp

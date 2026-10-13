@@ -1,0 +1,10 @@
+# Actual provider selector observed in native-saf-grant-hierarchy.json.
+appId: local.dailoop.personal
+name: Confirm native backup save and close app safely
+---
+- tapOn:
+    text: "ALLOW"
+    id: "android:id/button1"
+- assertVisible: ".*Archivo guardado en la carpeta elegida.*"
+- takeScreenshot: 12-backup-saved-confirmation
+- stopApp

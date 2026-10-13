@@ -1,0 +1,25 @@
+# Run after data round-trips. Font/keyboard/rotation are separate recorded device settings.
+appId: local.dailoop.personal
+name: Native light-dark appearance and tab navigation
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- tapOn: "Oscuro"
+- takeScreenshot: 20-dark-settings
+- tapOn: "Inicio"
+- takeScreenshot: 21-dark-home
+- tapOn: "Historial"
+- takeScreenshot: 22-dark-history
+- tapOn: "Estadísticas"
+- takeScreenshot: 23-dark-statistics
+- tapOn: "Ajustes"
+- tapOn: "Claro"
+- takeScreenshot: 24-light-settings
+- tapOn: "Inicio"
+- takeScreenshot: 25-light-home
+- tapOn: "Historial"
+- takeScreenshot: 26-light-history
+- tapOn: "Estadísticas"
+- takeScreenshot: 27-light-statistics

@@ -1,0 +1,18 @@
+# Only after explicit test-package clear and external backup preservation.
+appId: local.dailoop.personal
+name: Final release first launch empty and offline
+---
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Crear mi primera actividad"
+- assertNotVisible: "Lectura Android QA"
+- assertNotVisible: "Diario privado Android QA"
+- takeScreenshot: 90-final-release-clean-offline
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Acerca de Dailoop"
+    direction: DOWN
+- assertNotVisible: "Explorar con datos de demostración"
+- takeScreenshot: 91-native-settings-no-demo
+- stopApp

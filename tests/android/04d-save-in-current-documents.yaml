@@ -1,0 +1,14 @@
+# Provider location and selectors observed in native-vc2-save-picker-hierarchy.json.
+appId: local.dailoop.personal
+name: Save export in selected Documents folder
+---
+- tapOn:
+    text: "USE THIS FOLDER"
+    id: "android:id/button1"
+    enabled: true
+- tapOn:
+    text: "ALLOW"
+    id: "android:id/button1"
+- assertVisible: ".*Archivo guardado en la carpeta elegida.*"
+- takeScreenshot: export-confirmed
+- stopApp

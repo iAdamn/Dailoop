@@ -1,0 +1,33 @@
+appId: local.dailoop.personal
+name: Restore baseline through native picker and reopen
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- scrollUntilVisible:
+    element:
+      text: "native-baseline[.]json"
+      id: "android:id/title"
+    direction: DOWN
+- tapOn:
+    text: "native-baseline[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Confirmar reemplazo y restaurar"
+    direction: DOWN
+- tapOn: "Confirmar reemplazo y restaurar"
+- assertVisible: ".*Backup restaurado y verificado.*"
+- takeScreenshot: 16-restored-and-verified
+- stopApp
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Ver detalle de Lectura Android QA"
+- takeScreenshot: 17-restored-after-reopen
+- stopApp

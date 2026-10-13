@@ -1,0 +1,24 @@
+# Uses the existing two activities; creates no activity/record.
+appId: local.dailoop.personal
+name: Generate filtered native Markdown from restored data
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Estadísticas"
+- scrollUntilVisible:
+    element: "Generar reporte"
+    direction: DOWN
+- tapOn: "Generar reporte"
+- scrollUntilVisible:
+    element: "Ver vista previa"
+    direction: DOWN
+- assertVisible: ".*0 privadas. Notas: no.*"
+- tapOn: "Ver vista previa"
+- assertVisible: "Tu reporte está listo"
+- takeScreenshot: 30-report-preview-starts-at-top
+- scrollUntilVisible:
+    element: "Guardar Markdown"
+    direction: DOWN
+- tapOn: "Guardar Markdown"
+- takeScreenshot: 31-markdown-saf-picker

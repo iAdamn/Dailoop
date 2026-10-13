@@ -1,0 +1,27 @@
+# Device user_rotation=1, accelerometer_rotation=0 and font_scale=1.0.
+appId: local.dailoop.personal
+name: Native landscape navigation and scrolling
+---
+- launchApp:
+    permissions:
+      all: deny
+- assertVisible: "Tu día, a tu manera[.]"
+- takeScreenshot: 70-landscape-home-top
+- scrollUntilVisible:
+    element: "Registrar Lectura Android QA"
+    direction: DOWN
+- assertVisible: "Registrar Lectura Android QA"
+- swipe:
+    start: "60%, 66%"
+    end: "60%, 40%"
+    duration: 500
+- takeScreenshot: 71-landscape-register-reachable
+- tapOn: "Historial"
+- takeScreenshot: 72-landscape-history
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- assertVisible: "Restaurar un backup"
+- takeScreenshot: 73-landscape-data-actions-reachable
+- stopApp

@@ -1,0 +1,12 @@
+# Starts on a valid, already selected backup review. Provider selection is inspected separately.
+appId: local.dailoop.personal
+name: Cancel a validated replacement before writes
+---
+- assertVisible: "Revisar restauración"
+- takeScreenshot: 14-valid-backup-review
+- scrollUntilVisible:
+    element: "Cancelar sin cambiar datos"
+    direction: DOWN
+- tapOn: "Cancelar sin cambiar datos"
+- assertNotVisible: "Revisar restauración"
+- takeScreenshot: 15-restore-cancelled

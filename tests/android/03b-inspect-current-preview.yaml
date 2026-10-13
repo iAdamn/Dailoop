@@ -1,0 +1,14 @@
+# Resume only after a generated preview. Does not create activities or records.
+appId: local.dailoop.personal
+name: Inspect already generated native report preview
+---
+- scrollUntilVisible:
+    element: "Tu reporte está listo"
+    direction: UP
+- assertVisible: "Tu reporte está listo"
+- takeScreenshot: 07-native-report-preview
+- scrollUntilVisible:
+    element: "Guardar Markdown"
+    direction: DOWN
+- assertNotVisible: ".*NOTA_PRIVADA_QA_413.*"
+- takeScreenshot: 08-native-report-actions

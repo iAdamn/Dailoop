@@ -1,0 +1,7 @@
+# Open a real dailoop:///__* link with adb before this flow. No app launch/reset here.
+appId: local.dailoop.personal
+name: Development route unavailable in signed release
+---
+- assertVisible: "Ruta no disponible[.]"
+- takeScreenshot: 92-release-route-unavailable
+- stopApp
