@@ -1,4 +1,4 @@
-param([string]$Architecture = 'arm64-v8a,x86_64', [switch]$Incremental)
+param([ValidatePattern('^(arm64-v8a|x86_64)(,(arm64-v8a|x86_64))?$')][string]$Architecture = 'arm64-v8a', [switch]$Incremental, [switch]$NoOptimize)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $workspaceRoot = Split-Path -Parent $projectRoot
@@ -22,6 +22,8 @@ if (-not $newSigningIdentity -and -not (Test-Path -LiteralPath $storeFile)) {
 $signing = Get-Content -LiteralPath $privateConfig -Raw | ConvertFrom-Json
 if ($signing.storeFile -ne $storeFile -or $signing.alias -ne 'dailoop') { throw 'Unexpected release signing identity; inspect the private configuration.' }
 try {
+  $env:DAILOOP_BUILD_ARCHITECTURES = $Architecture
+  $env:DAILOOP_OPTIMIZE_RELEASE = if ($NoOptimize) { '0' } else { '1' }
   $env:DAILOOP_KEYSTORE_PATH = $storeFile
   $env:DAILOOP_KEYSTORE_PASSWORD = $signing.password
   if (-not (Test-Path -LiteralPath $storeFile)) {
@@ -72,5 +74,7 @@ try {
 } finally {
   Remove-Item Env:DAILOOP_KEYSTORE_PASSWORD -ErrorAction SilentlyContinue
   Remove-Item Env:DAILOOP_KEYSTORE_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:DAILOOP_BUILD_ARCHITECTURES -ErrorAction SilentlyContinue
+  Remove-Item Env:DAILOOP_OPTIMIZE_RELEASE -ErrorAction SilentlyContinue
   $signing = $null
 }

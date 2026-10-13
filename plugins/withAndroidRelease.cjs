@@ -52,7 +52,9 @@ module.exports = function withAndroidRelease(config) {
       'org.gradle.jvmargs': '-Xmx3072m -XX:MaxMetaspaceSize=1024m',
       'org.gradle.workers.max': '2',
       'org.gradle.parallel': 'false',
-      'reactNativeArchitectures': 'arm64-v8a,x86_64',
+      'reactNativeArchitectures': process.env.DAILOOP_BUILD_ARCHITECTURES || 'arm64-v8a',
+      'android.enableMinifyInReleaseBuilds': process.env.DAILOOP_OPTIMIZE_RELEASE === '0' ? 'false' : 'true',
+      'android.enableShrinkResourcesInReleaseBuilds': process.env.DAILOOP_OPTIMIZE_RELEASE === '0' ? 'false' : 'true',
       'EX_DEV_CLIENT_NETWORK_INSPECTOR': 'false',
       'android.enableBundleCompression': 'true',
     };

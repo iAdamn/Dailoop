@@ -1,11 +1,12 @@
 import {spawnSync} from 'node:child_process';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 if(!process.env.npm_execpath)throw new Error('Ejecuta npm run verify.');
-const output=path.join(root,'output','verification');
+const version=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')).version;
+const output=path.join(root,'output','verification',`v${version}`,'automated');
 await mkdir(output,{recursive:true});
 const checks=[['typecheck'],['lint'],['test:domain'],['test:storage'],['test:unit','--','--watch=false'],['test:stress'],['test:decoder'],['check:assets'],['check:expo']];
 const results=[];

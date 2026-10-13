@@ -27,7 +27,7 @@ PACKAGE = "local.dailoop.personal"
 # Public fingerprint supplied independently from the private release keystore.
 EXPECTED_CERTIFICATE_SHA256 = "72c065f017d9d53ead5934316a732424c2ae639beafc3c2937c4b89932b61310"
 ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android:"
-EXPECTED_ABIS = {"arm64-v8a": 183, "x86_64": 62}
+ABI_MACHINES = {"arm64-v8a": 183, "x86_64": 62}
 BACKUP_DOMAINS = {
     "root", "file", "database", "sharedpref", "external",
     "device_root", "device_file", "device_database", "device_sharedpref",
@@ -182,7 +182,7 @@ def inspect_elf(stream, size: int, abi: str) -> dict:
         raise ValueError("Expected a 64-bit little-endian ELF version 1")
     fields = struct.unpack("<16sHHIQQQIHHHHHH", header)
     machine, phoff, ehsize, phentsize, phnum = fields[2], fields[5], fields[8], fields[9], fields[10]
-    if machine != EXPECTED_ABIS.get(abi):
+    if machine != ABI_MACHINES.get(abi):
         raise ValueError(f"ELF machine {machine} does not match ABI {abi}")
     if ehsize != 64 or phentsize != 56 or not 0 < phnum < 65535:
         raise ValueError("Unsupported or invalid ELF/program header sizes")
@@ -208,7 +208,7 @@ def inspect_elf(stream, size: int, abi: str) -> dict:
             "valid16KiB": all(segment["valid16KiB"] for segment in segments)}
 
 
-def inspect(apk: Path, sdk: Path, output: Path, report: dict) -> None:
+def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set[str]) -> None:
     checks = report["checks"]
     def check(name: str, passed: bool, detail) -> None:
         checks.append({"name": name, "passed": bool(passed), "detail": detail})
@@ -380,7 +380,7 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict) -> None:
               {"generated": report["generatedBundle"], "packagedSha256": report.get("bundleSha256")})
         libraries = [entry for entry in entries if re.match(r"^lib/[^/]+/[^/]+\.so$", entry.filename)]
         abis = {entry.filename.split("/")[1] for entry in libraries}
-        check("native.abis", abis == set(EXPECTED_ABIS), {"actual": sorted(abis), "expected": sorted(EXPECTED_ABIS)})
+        check("native.abis", abis == expected_abis, {"actual": sorted(abis), "expected": sorted(expected_abis)})
         report["nativeLibraries"] = []
         for entry in libraries:
             abi = entry.filename.split("/")[1]
@@ -402,14 +402,18 @@ def main() -> int:
     parser.add_argument("apk", type=Path)
     parser.add_argument("sdk", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--expected-abis", required=True, help="Explicit release contract, e.g. arm64-v8a or x86_64 or arm64-v8a,x86_64")
     arguments = parser.parse_args()
+    expected_abis = set(arguments.expected_abis.split(","))
+    if not expected_abis or not expected_abis.issubset(ABI_MACHINES):
+        parser.error("Expected ABIs must be a nonempty subset of arm64-v8a,x86_64")
     apk, sdk, output = (path.absolute() for path in (arguments.apk, arguments.sdk, arguments.output))
     if not apk.is_file() or not sdk.is_dir():
         parser.error("APK file and SDK directory must already exist")
     output.mkdir(parents=True, exist_ok=True)
     report = {"inspectionVersion": 1, "startedAt": datetime.now(timezone.utc).isoformat(), "checks": []}
     try:
-        inspect(apk, sdk, output, report)
+        inspect(apk, sdk, output, report, expected_abis)
     except Exception as error:
         report["checks"].append({"name": "inspection.exception", "passed": False,
                                  "detail": type(error).__name__ + ": " + str(error)})

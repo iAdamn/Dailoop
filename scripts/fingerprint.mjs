@@ -28,7 +28,8 @@ const sourceFiles=['.gitignore','AGENTS.md','README.md','app.json','package.json
 for(const directory of roots)sourceFiles.push(...await walk(directory));
 const source=await fingerprints(sourceFiles);
 const webExport=await fingerprints(await walk('dist'));
-const output=path.join(root,'output','verification');
+const output=path.resolve(root,process.argv[2] || 'output/verification');
+if(output!==path.join(root,'output','verification')&&!output.startsWith(path.join(root,'output','verification')+path.sep))throw new Error('Fingerprint output must stay inside output/verification.');
 await mkdir(output,{recursive:true});
 await writeFile(path.join(output,'source-fingerprint.json'),JSON.stringify({createdAt:new Date().toISOString(),algorithm:'sha256',scope:'Source, tests, configuration, original assets, documentation and final Web export. Excludes secrets, node_modules, native builds and test output.',source,webExport},null,2));
 console.log(`Source: ${source.files.length} files, SHA-256 ${source.treeSha256}`);

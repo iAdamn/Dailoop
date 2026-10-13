@@ -1,5 +1,12 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
+// Native tooling and test output are huge, frequently changing trees, never JS
+// inputs. Do not let Gradle/SDK writes invalidate the development graph.
+const separator = '[\\\\/]';
+const projectPattern = __dirname.split(/[\\/]/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(separator);
+const generatedTrees = new RegExp(`^${projectPattern}${separator}(?:output|dist|android|ios)${separator}`);
+const previousBlockList = config.resolver.blockList;
+config.resolver.blockList = [...(Array.isArray(previousBlockList) ? previousBlockList : previousBlockList ? [previousBlockList] : []), generatedTrees];
 const resolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // query-string 7 still requests the vulnerable CommonJS decoder. Keep its call contract

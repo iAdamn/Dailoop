@@ -22,6 +22,21 @@ En Windows, la ruta original contiene `!`. Las herramientas batch de Android exp
 
 El script aplica el parche de paleta, ejecuta Expo prebuild sin instalar paquetes y `:app:assembleRelease`. Expo SDK 57 recrea Android por defecto; `-Incremental` pasa `--no-clean` para aplicar la configuración sobre los archivos generados existentes. Incluye arm64-v8a para el teléfono objetivo y x86_64 para probar el mismo APK en emulador. La salida original es `android/app/build/outputs/apk/release/app-release.apk`. Que el archivo exista no equivale a aprobar sus pruebas: verificar firma, manifiesto, recursos y ejecución antes de entregarlo.
 
+### Variantes desde 0.1.5
+
+La entrega principal pasa a ARM64, con otra variante x86_64 si se requiere para emulador. El script tiene minificación R8 y eliminación de recursos activadas por defecto; `-NoOptimize` sirve para la comparación controlada, no como una afirmación de optimización. El párrafo anterior describe la entrega universal histórica 0.1.0.
+
+```powershell
+./scripts/build-android.ps1 -Architecture arm64-v8a -Incremental
+./scripts/build-android.ps1 -Architecture x86_64 -Incremental
+# Comparador ARM64 sin R8/resource shrinking:
+./scripts/build-android.ps1 -Architecture arm64-v8a -Incremental -NoOptimize
+# Inspector: contrato explícito de la variante, sin inferirlo del propio APK:
+python scripts/inspect-apk.py RUTA_APK RUTA_SDK DIRECTORIO_EVIDENCIA --expected-abis arm64-v8a
+```
+
+Copiar cada APK a una ruta versionada antes de construir la siguiente variante; la ruta Gradle se reutiliza. Mantener fuente/bundle identificados y misma firma. No comparar GfxInfo mientras otra build carga el host. `npm run verify` guarda resultados bajo `output/verification/v<version>/automated`; para la huella final de 0.1.5 usar `node scripts/fingerprint.mjs output/verification/v0.1.5` y conservar las huellas anteriores.
+
 ## Firma privada y actualizaciones
 
 La identidad de firma se conserva en `C:/Users/adame/.dailoop/signing`, fuera del proyecto y sus exportaciones. La carpeta contiene el keystore PKCS12 y su configuración privada, restringidos al usuario de Windows y SYSTEM. Guardar una copia privada segura de **la carpeta completa**: se necesita la misma clave para actualizar una instalación sin desinstalarla. No añadir estos archivos a Git, ZIP público ni paquete APK.
