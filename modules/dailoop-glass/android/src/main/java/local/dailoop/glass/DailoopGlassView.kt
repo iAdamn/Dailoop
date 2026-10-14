@@ -96,7 +96,7 @@ class DailoopGlassView(context: Context, appContext: AppContext) : ExpoView(cont
         float rim = (1.0 - smoothstep(0.0, 1.6 * pixelScale, -edge));
         float light = max(0.0, dot(normal, normalize(float2(-0.4, -0.9))));
         half highlight = half(rim * light * 0.11);
-        return half4(min(rgb + highlight, half3(a + highlight)), min(1.0h, a + highlight));
+        return half4(min(rgb + highlight, half3(a + highlight)), min(half(1.0), a + highlight));
       }
     """
   }
