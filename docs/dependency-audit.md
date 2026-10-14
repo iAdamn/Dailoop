@@ -23,3 +23,7 @@ El efecto Android de vidrio aplica un parche de paleta pequeño y versionado en 
 El source map de Metro release generado contiene 1.690 fuentes. La inspección del candidato final, registrada en `output/verification/android-release/metro-runtime-audit-candidate-2.json`, encuentra el puente local y `safe-uri-decoder/index.js`, sin las fuentes de node-forge, braces, sprintf-js ni el decoder vulnerable. El UUID presente es el de expo-modules-core, no el paquete npm afectado. El inspector del APK candidato 2 confirma que el bundle empaquetado coincide por SHA-256 con el generado. No convierte el inventario de npm en PASS; el primer análisis se conserva en `metro-runtime-audit.json`.
 
 La preview permanece en localhost. La validación Android del paquete y de la configuración final se registra en `ANDROID-RELEASE.md`. No declarar “sin vulnerabilidades” ni usar los tests funcionales como sustituto de esta deuda documentada.
+
+## Revalidación local 0.5.0, 2026-10-14
+
+Tras añadir expo-notifications 57.0.22: `npm audit --omit=dev --json` continúa en **FAIL de inventario**, 64 nodos (47 high, 17 moderate, 0 critical), mismos cinco IDs 1119441, 1147955, 1240912, 1240992 y 1241202. Evidencia `output/verification/v0.5.0/runtime-audit-block2.json`. No aparece un aviso directo nuevo de Notifications. No se ejecutó audit fix ni se cambió de SDK para alterar el contador. Las clasificaciones de alcance anteriores y la deuda se conservan; las pruebas funcionales/compilación no las cierran.

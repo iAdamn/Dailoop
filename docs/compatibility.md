@@ -117,3 +117,7 @@ Corrección de vidrio solicitada después: `expo-blur@57.0.3` se incorpora como 
 Se añadió `safe-uri-decoder: npm:decode-uri-component@0.5.0` y un puente Metro probado para el aviso de decodificación de URLs. La deuda restante y la diferencia entre inventario npm y alcance del bundle se explican en [dependency-audit.md](dependency-audit.md).
 
 Resultados finales del coordinador: `expo install --check` PASS; **Expo Doctor 21/21 PASS** después del alias; typecheck y lint PASS; exportación Web PASS; **16/16 E2E** con SQLite Web real en Edge 155.0.4283.45. Fuente de evidencia: `output/verification/`, `output/playwright/results.json` y [CHECKPOINT.md](CHECKPOINT.md). No hay fallback de persistencia en memoria ni IndexedDB alternativo: el spike y la integración de SQLite Web pasaron. Los límites nativos siguen pendientes del gate separado.
+
+## Adición local 0.5.0 — 2026-10-14
+
+Se instaló `expo-notifications@57.0.22` con la matriz fijada de SDK 57 (`expo install --check` PASS). Autolinking y compilación Kotlin release verifican el módulo local `dailoop-glass` junto a Notifications. Sin librería gráfica adicional: Android 13+ usa AGSL de plataforma y Web SVG. El lockfile conserva las versiones anteriores de RN/Reanimated/Worklets. Ver RECORDATORIOS-RACHAS-0.5.0.md para permisos y límites nativos.

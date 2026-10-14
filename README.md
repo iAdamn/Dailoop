@@ -10,17 +10,21 @@ El desarrollo local **0.1.5** incorpora teclado visible, distribución de una a 
 
 El parche local **0.1.6** mantiene las cuatro pantallas preparadas y permite cambiar de pestaña arrastrando la barra inferior. El [contrato y estado de navegación](docs/NAVIGATION-0.1.6.md) y sus [pruebas](docs/NAVIGATION-0.1.6-QA.md) distinguen el funcionamiento comprobado de la fluidez pendiente de confirmar en el teléfono.
 
-El código actual **0.1.7** añade respuesta háptica y sonidos de vidrio, formulario compacto con selector de emojis completo sin conexión, colores claros de toda la rueda y animaciones rápidas de botones, ventanas y pestañas. La [entrega 0.1.7](docs/RELEASE-0.1.7.md) identifica el APK local firmado y sus comprobaciones; el enlace público histórico de arriba continúa apuntando a 0.1.0.
+La versión **0.1.7** añadió respuesta háptica y sonidos de vidrio, formulario compacto con selector de emojis completo sin conexión, colores claros de toda la rueda y animaciones rápidas de botones, ventanas y pestañas. La [entrega 0.1.7](docs/RELEASE-0.1.7.md) identifica el APK local firmado y sus comprobaciones; el enlace público histórico de arriba continúa apuntando a 0.1.0.
+
+La versión **0.5.0** corrige audio Android, añade categorías/carpetas y búsqueda compacta, aviso con X/cinco segundos y animación de salida, arrastre proporcional con refracción de agua/háptica, encabezado glass, preferencia de refresco y registro de otra hora. También incorpora **Registro, Recordatorios, Estadísticas y Ajustes**, con Historial dentro de Estadísticas, avisos locales múltiples y rachas por días. [Estado y aceptación](docs/PROGRESS-0.5.0.md) · [Reglas de recordatorios y rachas](docs/RECORDATORIOS-RACHAS-0.5.0.md). [Entrega firmada 0.5.0](docs/RELEASE-0.5.0.md): código publicado por bloques y APK local ARM64 en `output/releases/v0.5.0/`; el enlace público histórico continúa apuntando a 0.1.0. Se mantiene 0.5.0 hasta aceptar estabilidad en teléfono. SQLite migra a esquema físico 2 conservando el historial; importa backups v1 y usa v2 al añadir planificación.
 
 ## Probar la preview
 
 La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en **http://localhost:8793**. Son orígenes distintos y mantienen bases distintas. Usar Edge o Chromium con Web Locks y aislamiento COOP/COEP.
 
 1. Abre la preview. Puedes crear tu primera actividad o ir a **Ajustes → Explorar con datos de demostración**.
-2. Pulsa **Registrar** varias veces. En Historial, abre un registro para corregirlo, anularlo y consultar sus versiones anteriores.
+2. Pulsa **Registrar** varias veces. En **Estadísticas → Ver historial**, abre un registro para corregirlo, anularlo y consultar sus versiones anteriores.
 3. En Estadísticas, cambia día/semana/mes o elige fechas históricas. Genera un reporte y revisa la selección antes de guardar Markdown.
 4. En Ajustes, exporta un backup. Puedes inspeccionarlo, cancelar o confirmar la restauración completa. Incluye datos privados y todas las revisiones; el archivo no está cifrado.
 5. Prueba claro/oscuro y recarga. La demostración tiene su propia base; reiniciarla no afecta a tus datos personales.
+
+En Recordatorios puedes vincular una actividad, elegir fecha/hora y varios avisos, o completarla para guardar un único registro. Los avisos se reciben desde Android con permiso del sistema; la preview permite gestionar datos sin simular su entrega. Las rachas cuentan fechas locales consecutivas, no pulsaciones repetidas en un día.
 
 Los datos son locales de ese navegador y origen. No se sincronizan con Android. Borrar datos del sitio puede eliminarlos: conserva backups manuales. Una segunda pestaña permite consultar y recibe actualizaciones; para escribir, usa la primera o ciérrala y recarga la segunda. El servidor local debe estar disponible para cargar la preview; no es una PWA con arranque Web offline.
 
