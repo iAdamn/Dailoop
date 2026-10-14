@@ -1,4 +1,5 @@
 import { effectiveEntries, validateCommandFields } from './core';
+import { validatePlanning } from './planning';
 import { offsetMinutesAt, offsetSecondsAt } from './time';
 import { LIMITS, type ActivityFields, type ActivityRevision, type BackupCounts, type BackupFile, type BackupOptions, type Command, type Digest, type DomainState, type EntryRevision, type Operation, type ParsedBackup, type Settings } from './types';
 import { assertId, assertTime, assertZone, canonicalize, exactKeys, invariant, isRecord, textLimit, utf8Length, validateActivity, validateSettings } from './validation';
@@ -12,7 +13,7 @@ export function backupCounts(state: DomainState): BackupCounts { return { activi
 
 /** Validate untrusted storage/import data without changing the supplied object. */
 export function validateState(value: unknown): DomainState {
-  record(value, stateKeys, 'dataset'); record(value.meta, ['databaseId', 'schemaVersion', 'formatVersion', 'createdAtMs'], 'metadatos');
+  record(value, [...stateKeys, ...(isRecord(value) && Object.hasOwn(value, 'planning') ? ['planning'] : [])], 'dataset'); record(value.meta, ['databaseId', 'schemaVersion', 'formatVersion', 'createdAtMs'], 'metadatos');
   invariant(value.meta.schemaVersion === 1 && value.meta.formatVersion === 1, 'unsupported_version', 'Versión de datos no compatible.'); assertId(value.meta.databaseId); assertTime(value.meta.createdAtMs);
   record(value.settings, ['zone', 'hourFormat', 'weekStartsOn', 'theme'], 'ajustes'); validateSettings(value.settings as unknown as DomainState['settings']);
   for (const table of ['activities', 'activityRevisions', 'entries', 'entryRevisions', 'operations']) invariant(Array.isArray(value[table]), 'invalid_table', `Tabla ${table} no válida.`);
@@ -85,6 +86,7 @@ export function validateState(value: unknown): DomainState {
     else invariant(effects.get(operation.id) === 1, 'invalid_operation', 'Operación sin una revisión única.');
   }
   validateIntentEffects(state, activityRevisions);
+  if (Object.hasOwn(state, 'planning')) validatePlanning(state);
   return state;
 }
 function validateIntentEffects(state: DomainState, activityByRevision: Map<string, ActivityRevision>): void {
@@ -134,18 +136,18 @@ function validateDigest(digest: unknown): asserts digest is string { invariant(t
 export async function exportBackup(state: DomainState, options: BackupOptions, digest: Digest): Promise<string> {
   validateState(state); assertId(options.backupId); assertTime(options.exportedAtMs); textLimit(options.appVersion, 'La versión', 80, 8192, true);
   const canonical = canonicalize(state); const checksum = await digest(canonical); validateDigest(checksum);
-  const backup: BackupFile = { format: 'dailoop-backup', formatVersion: 1, schemaVersion: 1, backupId: options.backupId, databaseId: state.meta.databaseId, exportedAt: new Date(options.exportedAtMs).toISOString(), appVersion: options.appVersion, scope: 'full', counts: backupCounts(state), payload: JSON.parse(canonical) as DomainState, digest: checksum };
+  const backup: BackupFile = { format: 'dailoop-backup', formatVersion: Object.hasOwn(state, 'planning') ? 2 : 1, schemaVersion: 1, backupId: options.backupId, databaseId: state.meta.databaseId, exportedAt: new Date(options.exportedAtMs).toISOString(), appVersion: options.appVersion, scope: 'full', counts: backupCounts(state), payload: JSON.parse(canonical) as DomainState, digest: checksum };
   const text = JSON.stringify(backup, null, 2) + '\n'; invariant(utf8Length(text) <= LIMITS.backupBytes, 'backup_too_large', 'Esta copia supera el límite restaurable. No se generó un archivo incompleto.'); return text;
 }
 export async function parseBackup(text: string, digest: Digest): Promise<ParsedBackup> {
   invariant(typeof text === 'string' && utf8Length(text) <= LIMITS.backupBytes, 'backup_too_large', 'El archivo supera el límite admitido.');
   let raw: unknown; try { raw = JSON.parse(text); } catch { invariant(false, 'invalid_json', 'El archivo no contiene JSON válido.'); }
   record(raw, ['format', 'formatVersion', 'schemaVersion', 'backupId', 'databaseId', 'exportedAt', 'appVersion', 'scope', 'counts', 'payload', 'digest'], 'backup');
-  invariant(raw.format === 'dailoop-backup' && raw.scope === 'full', 'invalid_format', 'Selecciona un backup completo de Dailoop.'); invariant(raw.formatVersion === 1 && raw.schemaVersion === 1, 'unsupported_version', 'Esta versión de backup no es compatible.'); assertId(raw.backupId); assertId(raw.databaseId); validateDigest(raw.digest);
+  invariant(raw.format === 'dailoop-backup' && raw.scope === 'full', 'invalid_format', 'Selecciona un backup completo de Dailoop.'); invariant((raw.formatVersion === 1 || raw.formatVersion === 2) && raw.schemaVersion === 1, 'unsupported_version', 'Esta versión de backup no es compatible.'); assertId(raw.backupId); assertId(raw.databaseId); validateDigest(raw.digest);
   textLimit(raw.appVersion, 'La versión', 80, 8192, true);
   invariant(typeof raw.exportedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw.exportedAt) && Number.isFinite(Date.parse(raw.exportedAt)) && new Date(raw.exportedAt).toISOString() === raw.exportedAt, 'invalid_time', 'Fecha de exportación no válida.');
   const checksum = await digest(canonicalize(raw.payload)); validateDigest(checksum); invariant(checksum === raw.digest, 'checksum_mismatch', 'El archivo está dañado: checksum incorrecto.');
-  const state = validateState(raw.payload); invariant(state.meta.databaseId === raw.databaseId, 'database_mismatch', 'La identidad del dataset no coincide.'); record(raw.counts, ['activities', 'activityRevisions', 'entries', 'entryRevisions', 'operations'], 'conteos');
+  const state = validateState(raw.payload); invariant((raw.formatVersion === 2) === Object.hasOwn(state, 'planning'), 'invalid_format', 'La versión del backup no corresponde a su planificación.'); invariant(state.meta.databaseId === raw.databaseId, 'database_mismatch', 'La identidad del dataset no coincide.'); record(raw.counts, ['activities', 'activityRevisions', 'entries', 'entryRevisions', 'operations'], 'conteos');
   const counts = backupCounts(state); invariant(Object.entries(counts).every(([key, value]) => raw.counts && (raw.counts as unknown as Record<string, unknown>)[key] === value), 'count_mismatch', 'Los conteos del archivo no coinciden.');
   const all = effectiveEntries(state, { includeVoided: true });
   return { backup: raw as unknown as BackupFile, state, summary: { ...counts, databaseId: state.meta.databaseId, backupId: raw.backupId, exportedAt: raw.exportedAt, firstOccurredAtMs: all.length ? all[0].revision.occurredAtMs : null, lastOccurredAtMs: all.length ? all[all.length - 1].revision.occurredAtMs : null } };

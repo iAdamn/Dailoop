@@ -2,8 +2,8 @@ import { APP_VERSION } from '../version';
 import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { createEmptyState, execute, selectActivities, effectiveEntries, buildReport, exportBackup, parseBackup, validateState, canonicalize, currentSequence } from '../domain';
-import type { DomainState, Command, CommandResult, ChangeSet, ReportOptions, ParsedBackup, Meta, Settings, Activity, ActivityRevision, Entry, EntryRevision, Operation } from '../domain';
+import { applyPlanning, deriveReminders, createEmptyState, execute, selectActivities, effectiveEntries, buildReport, exportBackup, parseBackup, validateState, canonicalize, currentSequence } from '../domain';
+import type { PlanningCommand, PlanningEvent, DomainState, Command, CommandResult, ChangeSet, ReportOptions, ParsedBackup, Meta, Settings, Activity, ActivityRevision, Entry, EntryRevision, Operation } from '../domain';
 import { migrate } from './schema';
 import { digest, uuid } from './crypto';
 
@@ -25,6 +25,12 @@ function freezeState(state:DomainState,delta?:ChangeSet):DomainState {
     for(const row of (delta?delta[table]:state[table]))Object.freeze(row);
     Object.freeze(state[table]);
   }
+  if(state.planning) {
+    const freezeJSON=(value:unknown):void=>{
+      if(value && typeof value==='object' && !Object.isFrozen(value)){Object.values(value).forEach(freezeJSON);Object.freeze(value);}
+    };
+    freezeJSON(state.planning);
+  }
   Object.freeze(state.meta);Object.freeze(state.settings);Object.freeze(state);
   return state;
 }
@@ -33,7 +39,9 @@ export async function readSnapshot(db:SQLiteDatabase):Promise<DomainState> {
   const meta = await readRows<Meta>(db,'database_meta');
   const settings = await readRows<Settings>(db,'settings');
   if(meta.length!==1 || settings.length!==1) throw new Error('La base no contiene sus metadatos completos. No se reiniciará automáticamente.');
-  return {meta:meta[0],settings:settings[0],activities:await readRows<Activity>(db,'activities'),activityRevisions:await readRows<ActivityRevision>(db,'activity_revisions'),entries:await readRows<Entry>(db,'entries'),entryRevisions:await readRows<EntryRevision>(db,'entry_revisions'),operations:await readRows<Operation>(db,'operations')};
+  const events=await readRows<PlanningEvent>(db,'planning_events');
+  const present=await db.getFirstAsync('SELECT present FROM planning_meta WHERE id=1');
+  return {meta:meta[0],settings:settings[0],activities:await readRows<Activity>(db,'activities'),activityRevisions:await readRows<ActivityRevision>(db,'activity_revisions'),entries:await readRows<Entry>(db,'entries'),entryRevisions:await readRows<EntryRevision>(db,'entry_revisions'),operations:await readRows<Operation>(db,'operations'),...(events.length||present?{planning:{events}}:{})};
 }
 
 async function writeDelta(db:SQLiteDatabase, delta:ChangeSet, state:DomainState) {
@@ -57,6 +65,10 @@ async function seedDataset(db:SQLiteDatabase,state:DomainState) {
   await db.withTransactionAsync(async()=>{
     await db.runAsync('INSERT INTO database_meta VALUES(1,?)',JSON.stringify(state.meta));
     await writeDelta(db,{activities:state.activities,activityRevisions:[...state.activityRevisions].sort((a,b)=>a.revisionNo-b.revisionNo),entries:state.entries,entryRevisions:[...state.entryRevisions].sort((a,b)=>a.revisionNo-b.revisionNo),operations:state.operations,settings:state.settings,activityIds:state.activities.map(a=>a.id),entryIds:state.entries.map(e=>e.id)},state);
+    if(state.planning) {
+      await db.runAsync('INSERT INTO planning_meta VALUES(1,1)');
+      for(const event of state.planning.events) await db.runAsync('INSERT INTO planning_events VALUES(?,?,?)',event.id,event.sequence,JSON.stringify(event));
+    }
   });
 }
 
@@ -93,6 +105,7 @@ export class DailoopStore {
   private recoveryPending=false;
   private cachedState!:DomainState;
   private cachedSequence=0;
+  private cachedPlanningSequence=0;
   get recoveryRequired(){return this.recoveryPending;}
   private constructor(readonly mode:Mode, private readonly clock:()=>number, private readonly checkpoint?:(point:string)=>Promise<void>) {}
   static async open(mode:Mode,zone:string,clock:()=>number=Date.now,checkpoint?:(point:string)=>Promise<void>) {
@@ -146,6 +159,15 @@ export class DailoopStore {
   }
   private publishState(state:DomainState,delta?:ChangeSet){
     this.cachedState=freezeState(state,delta);this.cachedSequence=currentSequence(state);
+    this.cachedPlanningSequence=state.planning?.events.length??0;
+  }
+  private async committedState(db:SQLiteDatabase):Promise<DomainState>{
+    // Check both append-only logs inside the transaction. Unchanged snapshots
+    // retain their immutable indexes instead of decoding the entire history.
+    const persisted=await db.getFirstAsync<{sequence:number|null;planning_sequence:number|null}>(
+      'SELECT (SELECT MAX(sequence) FROM operations) AS sequence, (SELECT MAX(sequence) FROM planning_events) AS planning_sequence');
+    if((persisted?.sequence??0)===this.cachedSequence && (persisted?.planning_sequence??0)===this.cachedPlanningSequence)return this.cachedState;
+    const state=await readSnapshot(db);validateState(state);return freezeState(state);
   }
   private serial<T>(fn:()=>Promise<T>):Promise<T> {
     const guarded=()=>{if(this.recoveryPending)throw new RecoveryRequiredError();if(this.closed)throw new Error('La base cambió de sesión. Reintenta en la vista actual.');return fn();};
@@ -159,17 +181,51 @@ export class DailoopStore {
     throw new RecoveryRequiredError();
   }
   snapshot(){ return this.serial(async()=>this.cachedState); }
+  dispatchPlanning(command:PlanningCommand,operationId=uuid()):Promise<DomainState> {
+    return this.serial(async()=>{
+      let next!:DomainState;
+      await this.db.withTransactionAsync(async()=>{
+        const current=await this.committedState(this.db);
+        const planning=applyPlanning(current,command,{nowMs:this.clock(),operationId,nextId:uuid});
+        next={...current,planning};
+        await this.db.runAsync('INSERT OR IGNORE INTO planning_meta VALUES(1,1)');
+        for(const event of planning.events.slice(current.planning?.events.length??0)) await this.db.runAsync('INSERT INTO planning_events VALUES(?,?,?)',event.id,event.sequence,JSON.stringify(event));
+        await this.checkpoint?.('planning-before-commit');
+      });
+      this.publishState(next);
+      return this.cachedState;
+    });
+  }
+  completeReminder(reminderId:string,operationId=uuid()):Promise<CommandResult> {
+    return this.serial(async()=>{
+      let result!:CommandResult;
+      await this.db.withTransactionAsync(async()=>{
+        const current=await this.committedState(this.db);
+        const now=this.clock();
+        const reminder=deriveReminders(current,now).find(item=>item.id===reminderId);
+        if(!reminder || reminder.status==='archived')throw new Error('Este recordatorio ya no está disponible.');
+        const activity=selectActivities(current).find(item=>item.id===reminder.activityId);
+        if(!activity)throw new Error('Restaura la actividad antes de completar su recordatorio.');
+        if(reminder.status==='done') {
+          result={state:current,changeSet:{activities:[],activityRevisions:[],entries:[],entryRevisions:[],operations:[],settings:null,activityIds:[],entryIds:[]},result:{entryId:reminder.completedEntryId??undefined,replayed:true}};
+          return;
+        }
+        const existing=effectiveEntries(current,{includeVoided:true}).find(entry=>entry.id===reminder.completionEntryId);
+        result=execute(current,existing?{type:'restoreEntry',entryId:existing.id}:{type:'createEntry',activityId:reminder.activityId,id:reminder.completionEntryId,occurredAtMs:now,occurredZone:current.settings.zone},{nowMs:now,operationId,nextId:uuid});
+        await writeDelta(this.db,result.changeSet,result.state);
+        await this.checkpoint?.('before-commit');
+      });
+      this.publishState(result.state,result.changeSet);
+      return result;
+    });
+  }
   dispatch(command:Command,operationId=uuid()):Promise<CommandResult> {
     return this.serial(async()=>{
       let result!:CommandResult;
       const work=async(db:SQLiteDatabase)=>{
         // The origin has one owner, but verify the committed sequence inside the
         // transaction before deriving changes. SQLite remains authoritative.
-        const persisted=await db.getFirstAsync<{sequence:number|null}>('SELECT MAX(sequence) AS sequence FROM operations');
-        let current=this.cachedState;
-        if((persisted?.sequence??0)!==this.cachedSequence){
-          current=await readSnapshot(db);validateState(current);freezeState(current);
-        }
+        const current=await this.committedState(db);
         result=execute(current,command,{nowMs:this.clock(),operationId,nextId:uuid});
         await writeDelta(db,result.changeSet,result.state);
         await this.checkpoint?.('before-commit');

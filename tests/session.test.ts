@@ -277,3 +277,152 @@ test('a normal close failure that freezes the store leaves its session available
   await assert.rejects(session.openMode('demo'),/Recarga/);
   assert.equal(opens,0);assert.equal(session.store,old);assert.equal(session.snapshot.recoveryRequired,true);assert.equal(session.snapshot.reloading,false);
 });
+
+function reminderCommand(activityId:string,dueAtMs=now+86_400_000):Extract<domain.PlanningCommand,{type:'createReminder'}> {
+  return {type:'createReminder',id:randomUUID(),completionEntryId:randomUUID(),activityId,dueAtMs,leadMinutes:[1440,180,60,30,0],notifications:true};
+}
+
+test('planning dispatch rolls back both its marker and log, then retries and replays one immutable persisted event',async()=>{
+  const database=realSqlite();
+  try{
+    let fail=false;const {DailoopStore:Store}=storeModule(database);
+    const store=await Store.open('personal','America/Bogota',()=>now,async(point)=>{if(fail&&point==='planning-before-commit')throw new Error('planning rollback injected');});
+    const activity=await store.dispatch({type:'createActivity',name:'Leer',emoji:'📖',color:'#DCCFFF'});
+    const before=await store.snapshot(),command=reminderCommand(activity.result.activityId!),operationId=randomUUID();
+    fail=true;await assert.rejects(store.dispatchPlanning(command,operationId),/planning rollback injected/);
+    assert.equal(await store.snapshot(),before);assert.equal(Object.hasOwn(before,'planning'),false);
+    database.editActive(raw=>{
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_events').get()!.n,0);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_meta').get()!.n,0);
+    });
+    assert.equal(domain.canonicalize((await store.inspect(await store.backup())).state),domain.canonicalize(before));
+    fail=false;const committed=await store.dispatchPlanning(command,operationId);
+    assert.equal(domain.getPlanning(committed).reminders.length,1);assert.equal(committed.operations.length,1);
+    assert.ok(Object.isFrozen(committed.planning));assert.ok(Object.isFrozen(committed.planning!.events));
+    assert.ok(Object.isFrozen(committed.planning!.events[0].command));
+    assert.throws(()=>{(committed.planning!.events[0].command as typeof command).leadMinutes.push(15);},TypeError);
+    const replay=await store.dispatchPlanning(command,operationId);
+    assert.equal(domain.canonicalize(replay),domain.canonicalize(committed));
+    await assert.rejects(store.dispatchPlanning({...command,notifications:false},operationId),/operación.*otra acción/);
+    database.editActive(raw=>assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_events').get()!.n,1));
+    await store.close();
+    const reopened=await Store.open('personal','America/Bogota',()=>now);
+    assert.equal(domain.canonicalize(await reopened.snapshot()),domain.canonicalize(committed));await reopened.close();
+  }finally{database.cleanup();}
+});
+
+test('completing a reminder is atomic, retryable and idempotent across concurrent taps and relaunch',async()=>{
+  const database=realSqlite();
+  try{
+    let fail=false;const {DailoopStore:Store}=storeModule(database);
+    const store=await Store.open('personal','America/Bogota',()=>now,async(point)=>{if(fail&&point==='before-commit')throw new Error('completion rollback injected');});
+    const activity=await store.dispatch({type:'createActivity',name:'Leer',emoji:'📖',color:'#DCCFFF'});
+    const command=reminderCommand(activity.result.activityId!);await store.dispatchPlanning(command);
+    const before=await store.snapshot(),operationId=randomUUID();
+    fail=true;await assert.rejects(store.completeReminder(command.id,operationId),/completion rollback injected/);
+    assert.equal(await store.snapshot(),before);assert.equal(before.entries.length,0);
+    database.editActive(raw=>{
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entries').get()!.n,0);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entry_revisions').get()!.n,0);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM operations').get()!.n,1);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_events').get()!.n,1);
+    });
+    fail=false;const results=await Promise.all([store.completeReminder(command.id,operationId),store.completeReminder(command.id,operationId),store.completeReminder(command.id)]);
+    assert.deepEqual(results.map(result=>result.result.replayed),[false,true,true]);
+    const committed=await store.snapshot();assert.equal(committed.entries.length,1);assert.equal(committed.entryRevisions.length,1);assert.equal(committed.operations.length,2);
+    assert.equal(committed.entries[0].id,command.completionEntryId);assert.equal(domain.deriveReminders(committed,now)[0].status,'done');
+    await store.close();const reopened=await Store.open('personal','America/Bogota',()=>now);
+    const replay=await reopened.completeReminder(command.id);assert.equal(replay.result.replayed,true);assert.equal(replay.state.entries.length,1);
+    await reopened.dispatch({type:'voidEntry',entryId:command.completionEntryId});
+    assert.equal(domain.deriveReminders(await reopened.snapshot(),now)[0].status,'pending');
+    const restoreOperation=randomUUID(),restored=await reopened.completeReminder(command.id,restoreOperation);
+    assert.equal(restored.result.entryId,command.completionEntryId);assert.equal(restored.state.entries.length,1);
+    assert.deepEqual(restored.state.entryRevisions.map(revision=>revision.kind),['create','void','restore']);
+    assert.equal((await reopened.completeReminder(command.id,restoreOperation)).result.replayed,true);
+    assert.equal(domain.canonicalize((await reopened.inspect(await reopened.backup())).state),domain.canonicalize(restored.state));await reopened.close();
+  }finally{database.cleanup();}
+});
+
+test('a normal same-day registration completes one reminder; voiding reopens it and explicit completion preserves the voided audit',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database),store=await Store.open('personal','America/Bogota',()=>now);
+    const activity=await store.dispatch({type:'createActivity',name:'Leer',emoji:'📖',color:'#DCCFFF'});
+    const command=reminderCommand(activity.result.activityId!,now+3_600_000);await store.dispatchPlanning(command);
+    const registered=await store.dispatch({type:'createEntry',activityId:command.activityId});
+    assert.equal(domain.deriveReminders(registered.state,now)[0].status,'done');
+    const noDuplicate=await store.completeReminder(command.id);assert.equal(noDuplicate.result.replayed,true);assert.equal(noDuplicate.result.entryId,registered.result.entryId);
+    await store.dispatch({type:'voidEntry',entryId:registered.result.entryId!});
+    assert.equal(domain.deriveReminders(await store.snapshot(),now)[0].status,'pending');
+    const completed=await store.completeReminder(command.id);
+    assert.equal(completed.result.entryId,command.completionEntryId);assert.equal(completed.state.entries.length,2);
+    assert.equal(domain.effectiveEntries(completed.state).length,1);
+    assert.equal(domain.effectiveEntries(completed.state,{includeVoided:true}).find(entry=>entry.id===registered.result.entryId)!.revision.state,'void');
+    assert.equal(domain.deriveReminders(completed.state,now)[0].status,'done');await store.close();
+  }finally{database.cleanup();}
+});
+
+test('backup restoration preserves planning events, an explicitly empty planning object, and legacy v1 absence across relaunch',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database);let store=await Store.open('personal','America/Bogota',()=>now);
+    const base=(await candidate()).state;
+    const command=reminderCommand(base.activities[0].id);
+    const withPlanning={...base,planning:domain.applyPlanning(base,command,{nowMs:now,operationId:randomUUID(),nextId:randomUUID})};
+    const emptyPlanning={...base,planning:{events:[]}};
+    for(const expected of [withPlanning,emptyPlanning,base]){
+      const text=await domain.exportBackup(expected,{backupId:randomUUID(),exportedAtMs:now,appVersion:APP_VERSION},digest);
+      const backup=await domain.parseBackup(text,digest);assert.equal(backup.backup.formatVersion,Object.hasOwn(expected,'planning')?2:1);
+      await store.restore(backup);
+      assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(expected));
+      const exported=await store.inspect(await store.backup());
+      assert.equal(exported.backup.formatVersion,backup.backup.formatVersion);assert.equal(domain.canonicalize(exported.state),domain.canonicalize(expected));
+      await store.close();store=await Store.open('personal','America/Bogota',()=>now);
+      assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(expected));
+      database.editActive(raw=>{
+        assert.equal(raw.prepare('PRAGMA user_version').get()!.user_version,2);
+        assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_meta').get()!.n,Object.hasOwn(expected,'planning')?1:0);
+      });
+    }
+    await store.close();
+  }finally{database.cleanup();}
+});
+
+test('a planning-only commit by another initialized owner is preserved before the next core dispatch',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database),first=await Store.open('personal','America/Bogota',()=>now);
+    const created=await first.dispatch({type:'createActivity',name:'Leer',emoji:'📖',color:'#DCCFFF'});
+    const other=await Store.open('personal','America/Bogota',()=>now),command=reminderCommand(created.result.activityId!);
+    await other.dispatchPlanning(command);await other.close();
+    const result=await first.dispatch({type:'updateSettings',changes:{theme:'dark'}});
+    assert.equal(domain.getPlanning(result.state).reminders.length,1);
+    assert.equal(domain.getPlanning(result.state).reminders[0].id,command.id);
+    assert.equal(domain.canonicalize(result.state),domain.canonicalize((await first.inspect(await first.backup())).state));await first.close();
+  }finally{database.cleanup();}
+});
+
+test('opening a complete physical v1 dataset migrates it to v2 while preserving all audit rows and legacy backup shape',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database),store=await Store.open('personal','America/Bogota',()=>now);
+    const activity=await store.dispatch({type:'createActivity',name:'Anterior a recordatorios',emoji:'📖',color:'#DCCFFF'});
+    await store.dispatch({type:'createEntry',activityId:activity.result.activityId!,note:'Conservar este registro'});
+    const before=await store.snapshot();await store.close();
+    database.editActive(raw=>{
+      raw.exec('DROP TABLE planning_events;DROP TABLE planning_meta;DELETE FROM schema_migrations WHERE version=2;PRAGMA user_version=1;');
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM operations').get()!.n,2);
+      assert.equal(raw.prepare('PRAGMA user_version').get()!.user_version,1);
+    });
+    const upgraded=await Store.open('personal','America/Bogota',()=>now);
+    assert.equal(domain.canonicalize(await upgraded.snapshot()),domain.canonicalize(before));
+    database.editActive(raw=>{
+      assert.equal(raw.prepare('PRAGMA user_version').get()!.user_version,2);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get()!.n,2);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entries').get()!.n,1);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entry_revisions').get()!.n,1);
+    });
+    const backup=await upgraded.inspect(await upgraded.backup());
+    assert.equal(backup.backup.formatVersion,1);assert.equal(Object.hasOwn(backup.state,'planning'),false);await upgraded.close();
+  }finally{database.cleanup();}
+});

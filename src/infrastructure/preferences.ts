@@ -2,14 +2,19 @@ import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 
 export type ActivityColumns = 1 | 2 | 3 | 4;
-export interface PresentationPreferences { activityColumns: ActivityColumns }
-export const defaultPresentationPreferences: PresentationPreferences = { activityColumns: 1 };
+export type HomeListMode = 'activities' | 'categories';
+export interface PresentationPreferences { activityColumns: ActivityColumns; homeListMode: HomeListMode }
+export const defaultPresentationPreferences: PresentationPreferences = { activityColumns: 1, homeListMode: 'activities' };
 const storageKey = 'dailoop.presentation.v1';
 
 export function parsePresentationPreferences(value: string | null): PresentationPreferences {
   try {
-    const columns: unknown = JSON.parse(value || '{}').activityColumns;
-    if (columns === 1 || columns === 2 || columns === 3 || columns === 4) return { activityColumns: columns };
+    const parsed = JSON.parse(value || '{}');
+    const columns: unknown = parsed?.activityColumns;
+    return {
+      activityColumns: columns === 1 || columns === 2 || columns === 3 || columns === 4 ? columns : 1,
+      homeListMode: parsed?.homeListMode === 'categories' ? 'categories' : 'activities',
+    };
   } catch { /* Only presentation preferences may recover to defaults; never personal data. */ }
   return { ...defaultPresentationPreferences };
 }
@@ -65,9 +70,16 @@ class PresentationPreferencesStore {
     });
   }
   setColumns(activityColumns: ActivityColumns) {
+    if (![1, 2, 3, 4].includes(activityColumns)) return Promise.reject(new Error('Selecciona de una a cuatro columnas.'));
+    return this.set({ activityColumns });
+  }
+  setHomeListMode(homeListMode: HomeListMode) {
+    if (homeListMode !== 'activities' && homeListMode !== 'categories') return Promise.reject(new Error('Selecciona actividades o categorías.'));
+    return this.set({ homeListMode });
+  }
+  private set(changes: Partial<PresentationPreferences>) {
     return this.serial(async () => {
-      if (![1, 2, 3, 4].includes(activityColumns)) throw new Error('Selecciona de una a cuatro columnas.');
-      const value = { ...this.value, activityColumns };
+      const value = { ...this.value, ...changes };
       const json = JSON.stringify(value);
       if (Platform.OS === 'web') localStorage.setItem(storageKey, json);
       else await (await this.db()).runAsync('INSERT INTO presentation_preferences(id,json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json', json);

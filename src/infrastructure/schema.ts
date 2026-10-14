@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const MIGRATION_1 = `
 CREATE TABLE database_meta (id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL);
 CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL);
@@ -24,6 +24,13 @@ CREATE TRIGGER ${table}_no_update BEFORE UPDATE ON ${table} BEGIN SELECT RAISE(A
 CREATE TRIGGER ${table}_no_delete BEFORE DELETE ON ${table} BEGIN SELECT RAISE(ABORT,'Append-only history'); END;`).join('\n')}
 `;
 
+export const MIGRATION_2 = `
+CREATE TABLE planning_events (id TEXT PRIMARY KEY, sequence INTEGER UNIQUE NOT NULL, json TEXT NOT NULL);
+CREATE TABLE planning_meta (id INTEGER PRIMARY KEY CHECK(id=1), present INTEGER NOT NULL CHECK(present=1));
+CREATE TRIGGER planning_events_no_update BEFORE UPDATE ON planning_events BEGIN SELECT RAISE(ABORT,'Append-only history'); END;
+CREATE TRIGGER planning_events_no_delete BEFORE DELETE ON planning_events BEGIN SELECT RAISE(ABORT,'Append-only history'); END;
+`;
+
 /** A failed migration rolls back all DDL and its receipt. Never reset an unknown DB. */
 export async function migrate(db: SQLiteDatabase, digest: (s:string)=>Promise<string>): Promise<void> {
   await db.execAsync('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=4000;');
@@ -41,5 +48,16 @@ export async function migrate(db: SQLiteDatabase, digest: (s:string)=>Promise<st
   } else {
     const receipt = await db.getFirstAsync<{checksum:string}>('SELECT checksum FROM schema_migrations WHERE version=1');
     if (receipt?.checksum !== checksum) throw new Error('La migración no coincide con esta versión. Conserva la base y restaura una copia compatible.');
+  }
+  const checksum2 = await digest(MIGRATION_2);
+  if (version < 2) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(MIGRATION_2);
+      await db.runAsync('INSERT INTO schema_migrations VALUES(2,?,?)', Date.now(), checksum2);
+      await db.execAsync('PRAGMA user_version=2');
+    });
+  } else {
+    const receipt = await db.getFirstAsync<{checksum:string}>('SELECT checksum FROM schema_migrations WHERE version=2');
+    if (receipt?.checksum !== checksum2) throw new Error('La migración no coincide con esta versión. Conserva la base y restaura una copia compatible.');
   }
 }

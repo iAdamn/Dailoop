@@ -26,9 +26,9 @@ afterEach(() => { delete (globalThis as typeof globalThis & { __dailoopPresentat
 
 test('presentation parsing accepts only the four choices and recovers malformed local values', async () => {
   const { parsePresentationPreferences } = await freshStore();
-  for (const columns of [1, 2, 3, 4]) expect(parsePresentationPreferences(JSON.stringify({ activityColumns: columns }))).toEqual({ activityColumns: columns });
+  for (const columns of [1, 2, 3, 4]) expect(parsePresentationPreferences(JSON.stringify({ activityColumns: columns, homeListMode: 'activities' }))).toEqual({ activityColumns: columns, homeListMode: 'activities' });
   for (const value of [null, '', 'broken', '{}', 'null', '[]', '{"activityColumns":0}', '{"activityColumns":5}', '{"activityColumns":"4"}']) {
-    expect(parsePresentationPreferences(value)).toEqual({ activityColumns: 1 });
+    expect(parsePresentationPreferences(value)).toEqual({ activityColumns: 1, homeListMode: 'activities' });
   }
 });
 
@@ -39,7 +39,7 @@ test('native preference is announced only after its write commits and loads afte
   const commit = new Promise<void>(resolve => { release = resolve; });
   mockWrite.mockImplementationOnce(async () => { entered(); await commit; });
   const store = (await freshStore()).presentationPreferences;
-  expect(await store.load()).toEqual({ activityColumns: 1 });
+  expect(await store.load()).toEqual({ activityColumns: 1, homeListMode: 'activities' });
   const published: PresentationPreferences[] = [];
   store.subscribe(value => published.push(value));
   const pending = store.setColumns(4);
@@ -47,9 +47,9 @@ test('native preference is announced only after its write commits and loads afte
   expect(published).toEqual([]);
   expect(mockPersisted).toBeNull();
   release();
-  expect(await pending).toEqual({ activityColumns: 4 });
-  expect(published).toEqual([{ activityColumns: 4 }]);
-  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 4 });
+  expect(await pending).toEqual({ activityColumns: 4, homeListMode: 'activities' });
+  expect(published).toEqual([{ activityColumns: 4, homeListMode: 'activities' }]);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 4, homeListMode: 'activities' });
 });
 
 test('failed preference write preserves the prior value and does not poison later serialized writes', async () => {
@@ -62,8 +62,8 @@ test('failed preference write preserves the prior value and does not poison late
   await expect(store.setColumns(4)).rejects.toThrow('SQLite full');
   expect(mockPersisted).toBe('{"activityColumns":2}');
   expect(published).toEqual([]);
-  await expect(store.setColumns(3)).resolves.toEqual({ activityColumns: 3 });
-  expect(published).toEqual([{ activityColumns: 3 }]);
+  await expect(store.setColumns(3)).resolves.toEqual({ activityColumns: 3, homeListMode: 'activities' });
+  expect(published).toEqual([{ activityColumns: 3, homeListMode: 'activities' }]);
 });
 
 test('queued changes preserve user order and invalid runtime requests never reach storage', async () => {
@@ -73,5 +73,16 @@ test('queued changes preserve user order and invalid runtime requests never reac
   expect(mockWrite.mock.calls.map(([json]) => JSON.parse(json).activityColumns)).toEqual([2, 4, 1]);
   await expect(store.setColumns(5 as 1)).rejects.toThrow('Selecciona');
   expect(mockWrite).toHaveBeenCalledTimes(3);
-  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 1 });
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 1, homeListMode: 'activities' });
+});
+
+
+test('old preferences gain activities mode; folder mode and columns survive queued changes and restart', async () => {
+  const { parsePresentationPreferences, presentationPreferences: store } = await freshStore();
+  expect(parsePresentationPreferences('{"activityColumns":4}')).toEqual({ activityColumns: 4, homeListMode: 'activities' });
+  expect(parsePresentationPreferences('{"activityColumns":0,"homeListMode":"categories"}')).toEqual({ activityColumns: 1, homeListMode: 'categories' });
+  await store.load();
+  await Promise.all([store.setHomeListMode('categories'), store.setColumns(3)]);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 3, homeListMode: 'categories' });
+  await expect(store.setHomeListMode('invalid' as 'categories')).rejects.toThrow('Selecciona');
 });
