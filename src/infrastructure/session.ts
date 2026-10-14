@@ -1,6 +1,7 @@
 import { APP_VERSION } from '../version';
 import { Platform } from 'react-native';
 import { getCalendars } from 'expo-localization';
+import { deviceTimeZone } from './deviceTimeZone';
 import {createEmptyState,exportBackup,type DomainState} from '../domain';
 import { DailoopStore, RECOVERY_MESSAGE, type Mode } from './store';
 import { digest,uuid } from './crypto';
@@ -65,7 +66,7 @@ class Session {
   private async changeMode(mode:Mode){
     if(this.snapshot.readOnly)throw new Error('Esta pestaña es de solo lectura.');
     if(this.snapshot.recoveryRequired||this.store?.recoveryRequired){this.noteStoreError(new Error(RECOVERY_MESSAGE));throw new Error(RECOVERY_MESSAGE);}
-    const zone=(Platform.OS==='web'?Intl.DateTimeFormat().resolvedOptions().timeZone:getCalendars()[0]?.timeZone) || 'America/Bogota';
+    const zone=(Platform.OS==='web'?Intl.DateTimeFormat().resolvedOptions().timeZone:deviceTimeZone(getCalendars()[0]?.timeZone)) || 'America/Bogota';
     const previousMode=this.snapshot.mode;const previous=this.store;
     this.snapshot={...this.snapshot,reloading:true};this.emit();this.publish();
     try {

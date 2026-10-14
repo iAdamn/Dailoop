@@ -11,13 +11,14 @@ import ts from 'typescript';
 import * as domain from '../src/domain';
 import { migrate } from '../src/infrastructure/schema';
 import type { DailoopStore } from '../src/infrastructure/store';
+import { deviceTimeZone } from '../src/infrastructure/deviceTimeZone';
 
 const now=Date.parse('2026-10-13T17:00:00Z');
 const digest=async(value:string)=>createHash('sha256').update(value).digest('hex');
 function loadModule(path:string,dependencies:Record<string,unknown>,globals:Record<string,unknown>={}){
   const source=ts.transpileModule(readFileSync(join(process.cwd(),path),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const module={exports:{} as any};
-  dependencies = { '../version': { APP_VERSION }, ...dependencies };
+  dependencies = { '../version': { APP_VERSION }, './deviceTimeZone': { deviceTimeZone }, ...dependencies };
   new Function('require','module','exports','globalThis','Intl',source)((name:string)=>{
     if(!(name in dependencies))throw new Error(`Unexpected dependency: ${name}`);
     return dependencies[name];
@@ -85,7 +86,7 @@ test('native bootstrap restores the OS default zone when FormatJS replaces Intl.
     delete Intl.DateTimeFormat.prototype.formatRange;
     const source=ts.transpileModule(readFileSync('src/bootstrap.native.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
     const module={exports:{}};
-    new Function('require','module','exports',source)(name=>name==='expo-localization'?{getCalendars:()=>[{timeZone:'America/Los_Angeles'}]}:require(name),module,module.exports);
+    new Function('require','module','exports',source)(name=>name==='expo-localization'?{getCalendars:()=>[{timeZone:'America/Los_Angeles'}]}:name==='./infrastructure/deviceTimeZone'?require('./src/infrastructure/deviceTimeZone.ts'):require(name),module,module.exports);
     console.log(JSON.stringify({polyfilled:typeof Intl.DateTimeFormat.__setDefaultTimeZone==='function',zone:new Intl.DateTimeFormat().resolvedOptions().timeZone}));
   `;
   const child=spawnSync(process.execPath,['--import','tsx','-e',script],{cwd:process.cwd(),encoding:'utf8'});

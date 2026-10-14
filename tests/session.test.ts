@@ -11,6 +11,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import * as domain from '../src/domain';
 import { migrate } from '../src/infrastructure/schema';
 import type { DailoopStore } from '../src/infrastructure/store';
+import { deviceTimeZone } from '../src/infrastructure/deviceTimeZone';
 
 const now=Date.parse('2026-10-12T17:00:00Z');
 const digest=async(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -18,7 +19,7 @@ const digest=async(value:string)=>createHash('sha256').update(value).digest('hex
 function loadModule(path:string,dependencies:Record<string,unknown>){
   const source=ts.transpileModule(readFileSync(join(process.cwd(),path),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const module={exports:{} as any};
-  dependencies = { '../version': { APP_VERSION }, ...dependencies };
+  dependencies = { '../version': { APP_VERSION }, './deviceTimeZone': { deviceTimeZone }, ...dependencies };
   new Function('require','module','exports','globalThis',source)((name:string)=>{
     if(!(name in dependencies))throw new Error(`Unexpected dependency: ${name}`);
     return dependencies[name];
