@@ -1,3 +1,4 @@
+import { chooseDate } from './browserCalendar';
 import { readFile, writeFile } from 'node:fs/promises';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import type { DomainState } from '../src/domain/types';
@@ -41,11 +42,15 @@ async function awaitImages(page: Page) {
 }
 
 async function tab(page: Page, name: string) {
-  await page.getByRole('tab', { name, exact: true }).click();
+  // Closing a glass dialog takes a short exit transition; wait for it to leave
+  // before asking the bottom bar to navigate through its modal guard.
+  await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
+  await page.getByRole('tab', { name: name === 'Historial' ? 'Estadísticas' : name, exact: true }).click();
+  if (name === 'Historial') await page.getByRole('button', { name: 'Ver historial', exact: true }).click();
 }
 
 async function createActivity(page: Page, name: string, isPrivate = false) {
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await page.getByRole('button', { name: '＋ Nueva actividad', exact: true }).click();
   await page.getByLabel('Nombre de la actividad', { exact: true }).fill(name);
   await page.getByRole('button', { name: /^Cambiar emoji, actual / }).click();
@@ -68,13 +73,13 @@ async function record(page: Page, name: string) {
 async function retroactive(page: Page, name: string, time: string, note: string) {
   await page.getByRole('button', { name: `Ver detalle de ${name}`, exact: true }).click();
   await page.getByRole('button', { name: 'Registrar otra fecha', exact: true }).click();
-  await page.getByLabel('Fecha (AAAA-MM-DD)', { exact: true }).fill('2026-09-07');
+  await chooseDate(page, 'Fecha', '2026-09-07');
   await page.getByLabel('Hora (HH:mm, 24 horas)', { exact: true }).fill(time);
   await page.getByLabel('Nota (opcional)', { exact: true }).fill(note);
   await page.getByRole('button', { name: 'Revisar antes de guardar', exact: true }).click();
   await page.getByRole('button', { name: 'Guardar registro', exact: true }).click();
   await expect(page.getByText(/^1 registros? vigentes?$/)).toBeVisible();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
 }
 
 async function exportBackup(page: Page) {
@@ -123,7 +128,7 @@ test.beforeEach(async ({ page, context, baseURL }) => {
   expect(response?.headers()['cross-origin-opener-policy'], 'La ruta principal debe recibir COOP').toBe('same-origin');
   expect(response?.headers()['cross-origin-embedder-policy'], 'La ruta principal debe recibir COEP').toBe('require-corp');
   expect(await page.evaluate(() => globalThis.crossOriginIsolated)).toBe(true);
-  await expect(page.getByRole('tab', { name: 'Inicio', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Registro', exact: true })).toBeVisible();
   await expect(page.getByText('Cada cosa tiene su momento', { exact: true })).toBeVisible();
   await expectBundledTypography(page);
 });
@@ -145,7 +150,7 @@ test('registra dos intenciones, persiste y conserva cuatro revisiones al corregi
   await expect(page.getByRole('button', { name: /^Lectura QA, .*registrado$/ })).toHaveCount(2);
   await page.getByRole('button', { name: /^Lectura QA, .*registrado$/ }).first().click();
   await page.getByRole('button', { name: 'Corregir registro', exact: true }).click();
-  await page.getByLabel('Fecha (AAAA-MM-DD)', { exact: true }).fill('2026-10-11');
+  await chooseDate(page, 'Fecha', '2026-10-11');
   await page.getByLabel('Hora (HH:mm, 24 horas)', { exact: true }).fill('09:30');
   await page.getByLabel('Nota (opcional)', { exact: true }).fill('CORRECCIONQA');
   await page.getByRole('button', { name: 'Revisar antes de guardar', exact: true }).click();
@@ -171,7 +176,7 @@ test('registra dos intenciones, persiste y conserva cuatro revisiones al corregi
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
   await page.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await expect(page.getByText(/1 registro hoy · 1 actividad(?:es)? activas?/)).toBeVisible();
   await page.getByRole('button', { name: 'Ver detalle de Lectura QA', exact: true }).click();
   await expect(page.getByText('2 registros vigentes', { exact: true })).toBeVisible();
@@ -199,7 +204,7 @@ test('editar, archivar y restaurar una actividad conserva identidades y registro
     }
   };
 
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await page.getByRole('button', { name: `Opciones de ${originalName}`, exact: true }).click();
   await page.getByRole('button', { name: 'Editar actividad', exact: true }).click();
   await page.getByLabel('Nombre de la actividad', { exact: true }).fill(updatedName);
@@ -238,7 +243,7 @@ test('editar, archivar y restaurar una actividad conserva identidades y registro
   expect(archivedRevisions[2]).toMatchObject({ name: updatedName, emoji: '🌿', color: '#8FD8FF', isArchived: true, previousRevisionId: archivedRevisions[1].id });
   expect(archived.operations).toHaveLength(original.operations.length + 2);
 
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await page.getByRole('checkbox', { name: /^(?:✓ )?Archivadas$/ }).click();
   await expect(page.getByRole('button', { name: `Ver detalle de ${updatedName}`, exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: `Registrar ${updatedName}`, exact: true })).toHaveCount(0);
@@ -309,12 +314,12 @@ test('backup real: cancelar conserva cambios; restaurar reemplaza; repetir no du
   const initial = await exportBackup(page);
   expect(initial.content.payload.entries).toHaveLength(1);
   expect(initial.content.payload.entryRevisions).toHaveLength(1);
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await record(page, 'Backup QA');
   await expect(page.getByText(/2 registros hoy/)).toBeVisible();
   await chooseBackup(page, initial.path);
   await page.getByRole('button', { name: 'Cancelar sin cambiar datos', exact: true }).click();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await expect(page.getByText(/2 registros hoy/)).toBeVisible();
 
   for (let round = 0; round < 2; round++) {
@@ -336,7 +341,7 @@ test('backup real: cancelar conserva cambios; restaurar reemplaza; repetir no du
   const unaffected = await exportBackup(page);
   expect(unaffected.content.payload).toEqual(initial.content.payload);
   await page.reload();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await expect(page.getByText(/1 registro hoy/)).toBeVisible();
 });
 
@@ -384,7 +389,7 @@ test('la demostración y sus cambios permanecen separados de la base personal', 
   await tab(page, 'Ajustes');
   await page.getByRole('button', { name: 'Reiniciar demostración', exact: true }).click();
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await expect(page.getByRole('button', { name: 'Registrar Solo demostración QA', exact: true })).toBeVisible();
   await tab(page, 'Ajustes');
   await page.getByRole('button', { name: 'Reiniciar demostración', exact: true }).click();
@@ -420,7 +425,7 @@ test('pantallas claro/oscuro encajan en 360, 390, 430 y escritorio sin depender 
     expect(focusRing.color).toBe(theme === 'Oscuro' ? 'rgb(220, 207, 255)' : 'rgb(111, 91, 255)');
     expect(focusRing.style).toBe('solid');
     expect(focusRing.width).toBeGreaterThanOrEqual(2);
-    await tab(page, 'Inicio');
+    await tab(page, 'Registro');
     for (const width of [360, 390, 430, 1280]) {
       await page.setViewportSize({ width, height: 920 });
       await expect(page.getByRole('button', { name: 'Registrar Leer un rato y tomar café ☕', exact: true })).toBeVisible();

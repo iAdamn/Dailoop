@@ -1,0 +1,81 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import { expect, test } from '@playwright/test';
+import { createEmptyState, execute, exportBackup } from '../src/domain';
+import { chooseDate } from './browserCalendar';
+
+const now = Date.parse('2026-10-14T17:00:00Z');
+test.beforeEach(async ({ page }) => { await page.addInitScript(timestamp => { Date.now = () => timestamp; }, now); });
+
+test('create an activity inside a reminder, retain its calendar/time draft and save one linked activity', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#tab=reminders');
+  await page.getByRole('button', { name: '+ Nuevo recordatorio', exact: true }).click();
+  await chooseDate(page, 'Fecha del recordatorio', '2026-10-16');
+  await page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true }).fill('17:35');
+  await page.getByRole('button', { name: 'Crear una actividad para este recordatorio', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Una nueva actividad', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Fecha del recordatorio', exact: true })).toContainText('16 de octubre de 2026');
+  await expect(page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true })).toHaveValue('17:35');
+  await page.getByRole('button', { name: 'Crear una actividad para este recordatorio', exact: true }).click();
+  await page.getByLabel('Nombre de la actividad', { exact: true }).fill('Paseo');
+  await page.getByRole('button', { name: 'Crear actividad', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Elegir actividad Paseo', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Fecha del recordatorio', exact: true })).toContainText('16 de octubre de 2026');
+  await expect(page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true })).toHaveValue('17:35');
+  await page.getByRole('button', { name: 'Crear recordatorio', exact: true }).click();
+  await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Completar recordatorio de Paseo', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Completar recordatorio de Paseo', exact: true })).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Registro', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Registrar Paseo', exact: true })).toHaveCount(1);
+  await expect(page.getByText('1 actividad activa', { exact: false })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('palette icons, inset readable streaks, compact desktop tools and glass history back control', async ({ page }) => {
+  let state = createEmptyState({ databaseId: randomUUID(), nowMs: now - 10 * 86400000, zone: 'America/Bogota' });
+  const activityId = randomUUID();
+  state = execute(state, { type: 'createActivity', id: activityId, name: 'Leer', emoji: '📖', color: '#DCCFFF', isPrivate: false }, { nowMs: now - 9 * 86400000, operationId: randomUUID(), nextId: randomUUID }).state;
+  for (const days of [2, 1, 0]) state = execute(state, { type: 'createEntry', id: randomUUID(), activityId, occurredAtMs: now - days * 86400000, occurredZone: 'America/Bogota' }, { nowMs: now - days * 86400000, operationId: randomUUID(), nextId: randomUUID }).state;
+  const file = test.info().outputPath('synthetic-streak.json');
+  await writeFile(file, await exportBackup(state, { backupId: randomUUID(), exportedAtMs: now, appVersion: '0.5.0' }, async value => createHash('sha256').update(value).digest('hex')));
+  await page.goto('/#tab=settings');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Restaurar un backup', exact: true }).click();
+  await (await chooser).setFiles(file);
+  await page.getByRole('button', { name: 'Confirmar reemplazo y restaurar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Registrar Leer', exact: true })).toBeVisible();
+  await expect(page.getByTestId('symbol-home')).toHaveCSS('font-size', '26px');
+  await expect(page.getByTestId('symbol-bell')).toHaveCSS('font-family', /DailoopSymbols/);
+  await expect(page.getByRole('button', { name: 'Ver categorías', exact: true }).getByTestId('symbol-folder')).toBeVisible();
+  for (const columns of [2, 3, 4]) {
+    await page.getByRole('tab', { name: 'Ajustes', exact: true }).click();
+    await page.getByRole('checkbox', { name: `${columns} columnas`, exact: true }).click();
+    await page.getByRole('tab', { name: 'Registro', exact: true }).click();
+    const badge = await page.getByLabel('Racha de 3 días', { exact: true }).boundingBox();
+    const card = await page.getByTestId(`activity-card-${columns}`).boundingBox();
+    expect(badge!.x).toBeGreaterThanOrEqual(card!.x + 4);
+    expect(badge!.x + badge!.width).toBeLessThanOrEqual(card!.x + card!.width - 4);
+    expect(badge!.y).toBeGreaterThanOrEqual(card!.y + 4);
+    await expect(page.getByLabel('Racha de 3 días', { exact: true }).getByText('3', { exact: true })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath(`streak-${columns}-columns.png`) });
+  }
+  await page.setViewportSize({ width: 963, height: 884 });
+  const fresh = page.getByRole('button', { name: '＋ Nueva actividad', exact: true });
+  const active = page.getByRole('checkbox', { name: /^(?:✓ )?Activas$/ });
+  await expect.poll(async () => Math.abs((await fresh.boundingBox())!.y - (await active.boundingBox())!.y)).toBeLessThan(4);
+  await page.screenshot({ path: test.info().outputPath('compact-tools-desktop.png') });
+  await page.getByRole('tab', { name: 'Estadísticas', exact: true }).click();
+  await page.getByRole('button', { name: 'Ver historial', exact: true }).click();
+  const back = page.getByRole('button', { name: '‹ Estadísticas', exact: true });
+  expect(await back.locator('div').evaluateAll(elements => elements.some(element => getComputedStyle(element).backgroundImage.includes('linear-gradient')))).toBe(true);
+  await back.click();
+  await page.getByRole('checkbox', { name: 'Elegir fechas', exact: true }).click();
+  await chooseDate(page, 'Desde', '2026-10-12');
+  await chooseDate(page, 'Hasta, incluido', '2026-10-14');
+  await page.getByRole('button', { name: 'Aplicar fechas', exact: true }).click();
+  await expect(page.getByText('12/10/2026 — 14/10/2026', { exact: true })).toBeVisible();
+});

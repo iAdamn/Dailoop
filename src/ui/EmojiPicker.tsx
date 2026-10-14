@@ -22,11 +22,12 @@ export function EmojiPicker({ value, onSelect, onClose }: { value: string; onSel
   const chooseCategory = (next: number) => { Keyboard.dismiss(); search(''); setCategory(next); };
 
   return <ModalFrame title="Elige un emoji" onClose={onClose} scrollable={manual}>
+    {({ closeWith }) => <>
     <View style={{ height: manual ? undefined : Math.min(height * 0.66, 540), flexShrink: 1, minHeight: 0, gap: 12 }}>
       {manual ? <>
         <Field label="Escribe o pega un emoji" value={typed} onChangeText={setTyped} autoFocus autoCorrect={false} autoCapitalize="none" maxLength={64} />
         <Label small>Puedes elegirlo con el teclado de tu dispositivo.</Label>
-        <Button feedback="selection" disabled={!isSingleEmoji(typed)} onPress={() => choose(typed.trim())}>Usar este emoji</Button>
+        <Button feedback="selection" disabled={!isSingleEmoji(typed)} onPress={() => closeWith(() => choose(typed.trim()))}>Usar este emoji</Button>
         <Button compact subtle onPress={() => { Keyboard.dismiss(); setManual(false); }}>Ver catálogo de emojis</Button>
       </> : <>
         <Field label="Buscar emoji" value={query} onChangeText={search} placeholder="Caras, deporte, café…" autoCapitalize="none" autoCorrect={false} maxLength={80} />
@@ -41,7 +42,7 @@ export function EmojiPicker({ value, onSelect, onClose }: { value: string; onSel
             columnWrapperStyle={columns > 1 ? { gap: 4 } : undefined} ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
             ListEmptyComponent={<Label small>No encontramos ese emoji. Prueba otra palabra o usa tu teclado.</Label>}
             renderItem={({ item }) => <MotionPressable accessibilityRole="button" accessibilityLabel={`Elegir ${item.emoji}, ${item.name}`}
-              accessibilityState={{ selected: value === item.emoji }} onPress={() => choose(item.emoji)}
+              accessibilityState={{ selected: value === item.emoji }} onPress={() => closeWith(() => choose(item.emoji))}
               style={({ focused }: { pressed: boolean; focused?: boolean }) => ({ width: (width - (columns - 1) * 4) / columns, height: 48, borderRadius: 14,
                 alignItems: 'center', justifyContent: 'center', backgroundColor: value === item.emoji ? alpha(palette.lavender, colors.dark ? 0.18 : 0.5) : 'transparent',
                 borderWidth: 1, borderColor: value === item.emoji ? colors.border : 'transparent', ...webFocusRing(focused) })}>
@@ -59,5 +60,6 @@ export function EmojiPicker({ value, onSelect, onClose }: { value: string; onSel
         <Button compact subtle onPress={() => setManual(true)}>Usar mi teclado</Button>
       </>}
     </View>
+    </>}
   </ModalFrame>;
 }

@@ -33,7 +33,7 @@ test('50 actividades y 10000 registros: import real, lista, commit medido y reap
   await page.reload();
   await expect(counter).toContainText(`${initial+10} registros hoy`,{timeout:60_000});
   const reopenMs=performance.now()-reloadStart;
-  await page.getByRole('tab',{name:'Historial',exact:true}).click();
+  await page.getByRole('tab',{name:'Estadísticas',exact:true}).click(); await page.getByRole('button',{name:'Ver historial',exact:true}).click();
   await expect(page.getByText(`${STRESS_EXPECTED.activeEntries+10} registros · Todo el historial · America/Bogota`,{exact:true})).toBeVisible();
   await page.getByRole('button',{name:/Cargar más/}).click();
   await page.getByRole('tab',{name:'Ajustes',exact:true}).click();

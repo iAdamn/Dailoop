@@ -11,6 +11,7 @@ import { useInteractionFeedback, type FeedbackKind } from './feedback';
 export { GlassLayer } from './material';
 
 export const ColorContext = createContext<UIColors>(themeColors('light', false));
+const ModalClosingContext = createContext(false);
 export const useColors = () => useContext(ColorContext);
 export function quantity(count: number, singular: string, plural: string) { return `${count} ${count === 1 ? singular : plural}`; }
 export function titleReflection(dark = false) {
@@ -36,6 +37,8 @@ export function Heading({ children, subtitle }: { children: React.ReactNode; sub
 }
 export function Button({ children, onPress, secondary = false, subtle = false, busy = false, disabled = false, label, testID, compact = false, feedback }: { children: React.ReactNode; onPress(): void; secondary?: boolean; subtle?: boolean; busy?: boolean; disabled?: boolean; label?: string; testID?: string; compact?: boolean; feedback?: FeedbackKind }) {
   const c = useColors();
+  const modalClosing = useContext(ModalClosingContext);
+  disabled = disabled || modalClosing;
   const color = secondary || subtle ? c.text : c.buttonText;
   const bg = secondary || subtle ? 'transparent' : c.button;
   return <MotionPressable feedback={feedback ?? (secondary || subtle ? 'selection' : 'action')} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: disabled || busy, busy }} aria-disabled={disabled || busy} aria-busy={busy} disabled={disabled || busy} testID={testID} onPress={onPress} style={({ pressed, focused }: { pressed: boolean; focused?: boolean }) => [s.button, compact && s.compactButton, { backgroundColor: bg, borderColor: secondary || subtle ? 'transparent' : bg, opacity: disabled ? 0.5 : 1 }, pressed && { opacity: 0.75 }, focused && { borderColor: palette.violet, borderWidth: 3 }, webFocusRing(focused, c.dark ? palette.lavender : palette.violet)]}>
@@ -65,11 +68,13 @@ export function Panel({ children, style, tint }: { children: React.ReactNode; st
   const c = useColors();
   return <View style={[s.panel, { backgroundColor: 'transparent', borderColor: 'transparent', boxShadow: glassShadow(c.dark) }, style]}><GlassLayer radius={26} tint={tint} dark={c.dark} strength="strong" />{children}</View>;
 }
-export function ModalFrame({ title, subtitle, children, onClose, canClose = true, scrollable = true }: { title: string; subtitle?: string; children: React.ReactNode; onClose(): void; canClose?: boolean; scrollable?: boolean }) {
+export type ModalControls = { close(): void; closeWith(action: () => void): void; isClosing: boolean };
+export function ModalFrame({ title, subtitle, children, onClose, canClose = true, scrollable = true }: { title: string; subtitle?: string; children: React.ReactNode | ((controls: ModalControls) => React.ReactNode); onClose(): void; canClose?: boolean; scrollable?: boolean }) {
   const c = useColors();
   const motion = useModalMotion(onClose, canClose);
   const respond = useInteractionFeedback();
-  return <Modal transparent animationType="none" visible onShow={motion.show} onRequestClose={motion.close}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.backdrop}><Animated.View testID="dialog-motion" accessibilityViewIsModal style={[motion.style, s.modal, { backgroundColor: 'transparent', borderColor: 'transparent' }]}><GlassLayer radius={30} dark={c.dark} strength="strong" /><View style={[s.modalHeader, { borderColor: c.surfaceEdge }]}><View style={s.flex}><Text accessibilityRole="header" style={[s.modalTitle, { color: c.text }, titleReflection(c.dark)]}>{title}</Text>{subtitle && <Label small>{subtitle}</Label>}</View><MotionPressable feedback={false} accessibilityRole="button" accessibilityLabel="Cerrar diálogo" onPress={() => { respond('selection'); motion.close(); }} style={({ focused }: { pressed: boolean; focused?: boolean }) => [s.close, { backgroundColor: alpha(palette.lavender, c.dark ? 0.035 : 0.35) }, webFocusRing(focused, c.dark ? palette.lavender : palette.violet)]}><Text style={[s.closeText, { color: c.text }]}>×</Text></MotionPressable></View>{scrollable ? <KeyboardScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalContent}>{children}</KeyboardScrollView> : <View style={[s.modalContent, { flexShrink: 1, minHeight: 0 }]}>{children}</View>}</Animated.View></KeyboardAvoidingView></Modal>;
+  const content = typeof children === 'function' ? children(motion) : children;
+  return <Modal transparent animationType="none" visible onShow={motion.show} onRequestClose={motion.close}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.backdrop}><Animated.View testID="dialog-motion" pointerEvents={motion.isClosing ? 'none' : 'auto'} accessibilityViewIsModal style={[motion.style, s.modal, { backgroundColor: 'transparent', borderColor: 'transparent' }]}><ModalClosingContext.Provider value={motion.isClosing}><GlassLayer radius={30} dark={c.dark} strength="strong" /><View style={[s.modalHeader, { borderColor: c.surfaceEdge }]}><View style={s.flex}><Text accessibilityRole="header" style={[s.modalTitle, { color: c.text }, titleReflection(c.dark)]}>{title}</Text>{subtitle && <Label small>{subtitle}</Label>}</View><MotionPressable feedback={false} disabled={motion.isClosing} accessibilityRole="button" accessibilityLabel="Cerrar diálogo" onPress={() => { respond('selection'); motion.close(); }} style={({ focused }: { pressed: boolean; focused?: boolean }) => [s.close, { backgroundColor: alpha(palette.lavender, c.dark ? 0.035 : 0.35) }, webFocusRing(focused, c.dark ? palette.lavender : palette.violet)]}><Text style={[s.closeText, { color: c.text }]}>×</Text></MotionPressable></View>{scrollable ? <KeyboardScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalContent}>{content}</KeyboardScrollView> : <View style={[s.modalContent, { flexShrink: 1, minHeight: 0 }]}>{content}</View>}</ModalClosingContext.Provider></Animated.View></KeyboardAvoidingView></Modal>;
 }
 export function Empty({ symbol = '◷', title, text, children }: { symbol?: string; title: string; text: string; children?: React.ReactNode }) {
   const c = useColors();

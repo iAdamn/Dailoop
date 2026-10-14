@@ -8,7 +8,7 @@ const publicName = 'Actividad QA 002 con nombre largo y emoji repetido';
 const privateName = 'PRIVADA QA 001';
 const digest = async (text: string) => createHash('sha256').update(text).digest('hex');
 const errors = new WeakMap<Page, string[]>();
-const tab = async (page: Page, name: string) => page.getByRole('tab', { name, exact: true }).click();
+async function tab(page: Page, name: string) { await page.getByRole('tab', { name: name === 'Historial' ? 'Estadísticas' : name, exact: true }).click(); if (name === 'Historial') await page.getByRole('button', { name: 'Ver historial', exact: true }).click(); }
 const chip = (page: Page, name: string) => page.getByRole('checkbox', { name: new RegExp(`^(?:✓ )?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) });
 function expectPreservedById<T extends { id: string }>(before: readonly T[], after: readonly T[]) {
   const current = new Map(after.map(row => [row.id, row]));
@@ -51,7 +51,7 @@ test('history search, activity selection and expanded filters survive leaving an
   await page.getByRole('switch', { name: 'Mostrar registros anulados', exact: true }).click();
   await chip(page, `📖 ${publicName}`).click();
   await expect(page.getByRole('button', { name: new RegExp(`^${publicName}, .*registrado$`) })).toHaveCount(10);
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await tab(page, 'Estadísticas');
   await tab(page, 'Historial');
   await expect(page.getByRole('textbox', { name: 'Buscar una actividad', exact: true })).toHaveValue('QA 002');
@@ -85,7 +85,7 @@ test('confirmed records update retained history and statistics without duplicati
   await chip(page, 'Día').click();
   await tab(page, 'Historial');
   await page.getByRole('textbox', { name: 'Buscar una actividad', exact: true }).fill('QA 002');
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   for (let intent = 0; intent < 2; intent++) {
     const button = page.getByRole('button', { name: `Registrar ${publicName}`, exact: true });
     await button.click();
@@ -122,11 +122,11 @@ test('confirmed records update retained history and statistics without duplicati
 });
 
 test('only the active screen exposes controls and one selected tab to accessibility queries', async ({ page }) => {
-  for (const name of ['Historial', 'Estadísticas', 'Ajustes', 'Inicio']) {
+  for (const name of ['Recordatorios', 'Estadísticas', 'Ajustes', 'Registro']) {
     await tab(page, name);
     await expect(page.getByRole('tab', { selected: true })).toHaveCount(1);
     await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
-    if (name !== 'Inicio') {
+    if (name !== 'Registro') {
       await expect(page.getByRole('button', { name: `Registrar ${publicName}`, exact: true })).toHaveCount(0);
       await expect(page.getByRole('heading', { name: '¿Qué quieres registrar?', exact: true })).toHaveCount(0);
     }
@@ -146,13 +146,13 @@ test('only the active screen exposes controls and one selected tab to accessibil
 test('a settings text draft and activity form draft survive their supported return paths', async ({ page }) => {
   await tab(page, 'Ajustes');
   await page.getByRole('textbox', { name: 'Zona horaria para agrupar', exact: true }).fill('Europe/Madrid');
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await page.getByRole('button', { name: `Ver detalle de ${publicName}`, exact: true }).click();
-  await page.getByRole('button', { name: '‹ Volver a Inicio', exact: true }).click();
+  await page.getByRole('button', { name: '‹ Volver a Registro', exact: true }).click();
   await tab(page, 'Ajustes');
   await expect(page.getByRole('textbox', { name: 'Zona horaria para agrupar', exact: true })).toHaveValue('Europe/Madrid');
   await expect(page.getByRole('button', { name: 'Guardar zona', exact: true })).toBeEnabled();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await page.getByRole('button', { name: '＋ Nueva actividad', exact: true }).click();
   await page.getByRole('textbox', { name: 'Nombre de la actividad', exact: true }).fill('BORRADOR_NAVEGACION');
   await page.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
@@ -166,46 +166,68 @@ test('a settings text draft and activity form draft survive their supported retu
 
 test('dragging only the bottom bar selects its destination and never creates a record', async ({ page }) => {
   const original = createV015State(10, 100);
-  async function dragTab(from: string, to: string) {
+  async function dragTab(from: string, to: string, inspectPreview = false) {
     const start = await page.getByRole('tab', { name: from, exact: true }).boundingBox();
     const end = await page.getByRole('tab', { name: to, exact: true }).boundingBox();
     expect(start).not.toBeNull(); expect(end).not.toBeNull();
     await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
     await page.mouse.down();
+    if (inspectPreview) {
+      const history = await page.getByRole('tab', { name: 'Recordatorios', exact: true }).boundingBox();
+      const viewport = await page.getByTestId('tab-panel-0').boundingBox();
+      expect(history).not.toBeNull(); expect(viewport).not.toBeNull();
+      // Half a capsule-cell previews half of each retained screen, while the
+      // committed route and accessibility destination remain unchanged.
+      await page.mouse.move((start!.x + start!.width / 2 + history!.x + history!.width / 2) / 2,
+        start!.y + start!.height / 2, { steps: 6 });
+      await expect.poll(async () => page.getByTestId('tab-panel-0').evaluate(element => {
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+        return -matrix.m41 / element.getBoundingClientRect().width;
+      })).toBeCloseTo(0.5, 1);
+      const neighbour = await page.getByTestId('tab-panel-1').boundingBox();
+      expect(neighbour).not.toBeNull();
+      expect(neighbour!.x - viewport!.x).toBeCloseTo(viewport!.width / 2, -1);
+      await expect(page.getByRole('tab', { name: 'Registro', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('textbox', { name: 'Buscar una actividad', exact: true })).toHaveCount(0);
+      // A moving nonlinear displacement field refracts the actual icon/text row.
+      await expect(page.getByTestId('water-lens-web')).toHaveCSS('filter', /url/);
+      await expect.poll(() => page.locator('feImage').evaluate(element => parseFloat(element.getAttribute('x')!))).toBeGreaterThan(20);
+      await expect(page.locator('feDisplacementMap')).toHaveAttribute('scale', '28');
+    }
     await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 12 });
     await page.mouse.up();
     await expect(page.getByRole('tab', { name: to, exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('tab', { selected: true })).toHaveCount(1);
   }
-  await dragTab('Inicio', 'Estadísticas');
+  await dragTab('Registro', 'Estadísticas', true);
   await expect(page.getByRole('heading', { name: 'Tu ritmo', exact: true })).toBeVisible();
   await dragTab('Estadísticas', 'Ajustes');
   await expect(page.getByRole('heading', { name: 'Tus ajustes', exact: true })).toBeVisible();
-  await dragTab('Ajustes', 'Inicio');
+  await dragTab('Ajustes', 'Registro');
   await expect(page.getByRole('heading', { name: '¿Qué quieres registrar?', exact: true })).toBeVisible();
   // Suppressing the press that follows a drag must not latch keyboard or later taps.
-  await page.getByRole('tab', { name: 'Historial', exact: true }).focus();
-  await page.getByRole('tab', { name: 'Historial', exact: true }).press('Space');
-  await expect(page.getByRole('tab', { name: 'Historial', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Recordatorios', exact: true }).focus();
+  await page.getByRole('tab', { name: 'Recordatorios', exact: true }).press('Space');
+  await expect(page.getByRole('tab', { name: 'Recordatorios', exact: true })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Estadísticas', exact: true }).focus();
   await page.getByRole('tab', { name: 'Estadísticas', exact: true }).press('Enter');
   await expect(page.getByRole('tab', { name: 'Estadísticas', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   // A horizontal drag over content is deliberately outside the navigation gesture.
   await page.mouse.move(300, 410);
   await page.mouse.down();
   await page.mouse.move(80, 410, { steps: 12 });
   await page.mouse.up();
-  await expect(page.getByRole('tab', { name: 'Inicio', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Registro', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { name: '¿Qué quieres registrar?', exact: true })).toBeVisible();
-  const home = await page.getByRole('tab', { name: 'Inicio', exact: true }).boundingBox();
+  const home = await page.getByRole('tab', { name: 'Registro', exact: true }).boundingBox();
   expect(home).not.toBeNull();
   const x = home!.x + home!.width / 2, y = home!.y + home!.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x, y - 50, { steps: 12 });
   await page.mouse.up();
-  await expect(page.getByRole('tab', { name: 'Inicio', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Registro', exact: true })).toHaveAttribute('aria-selected', 'true');
   // Chromium delivers an actual trusted pointer cancellation for this input;
   // this does not substitute for cancellation on the Android recognizer.
   await page.evaluate(() => {
@@ -219,7 +241,7 @@ test('dragging only the bottom bar selects its destination and never creates a r
   await input.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
   await input.detach();
   await expect(page.locator('html')).toHaveAttribute('data-qa-pointer-cancelled', 'true');
-  await expect(page.getByRole('tab', { name: 'Inicio', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Registro', exact: true })).toHaveAttribute('aria-selected', 'true');
   await tab(page, 'Ajustes');
   await page.getByRole('button', { name: 'Crear backup completo', exact: true }).click();
   const downloaded = page.waitForEvent('download');

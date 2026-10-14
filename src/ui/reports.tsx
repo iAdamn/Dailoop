@@ -2,11 +2,12 @@ import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { addCalendarDays, computeStats, effectiveEntries, localDate, makePeriod, periodFor, selectActivities, startOfLocalDay } from '../domain';
 import type { DomainState, Period, ReportModel, ReportOptions } from '../domain/types';
-import { Button, Chip, Empty, Field, Heading, Label, Panel, s, Toggle, useColors, quantity, GlassLayer, titleReflection } from './components';
+import { Button, Chip, Empty, Heading, Label, Panel, s, Toggle, useColors, quantity, GlassLayer, titleReflection } from './components';
 import { alpha, palette } from './tokens';
 import { typefaces } from './typography';
 import { glassShadow } from './material';
 import { retainedPeriod } from './retainedPeriod';
+import { CalendarField } from './CalendarField';
 
 const errorText = (e: unknown) => e instanceof Error ? e.message : 'No se pudo completar la acción.';
 export function dateLabel(date: string) {
@@ -44,11 +45,11 @@ export function PeriodControls({ period, nowMs, onChange, allowRange = true }: {
   return <View style={s.stack}>
     <View style={s.wrap}>{([['day', 'Día'], ['week', 'Semana'], ['month', 'Mes']] as const).map(([kind, label]) => <Chip key={kind} selected={period.kind === kind} onPress={() => switchKind(kind)}>{label}</Chip>)}{allowRange && <Chip selected={period.kind === 'range' || custom} onPress={() => { setFrom(period.from); setTo(period.to > today ? today : period.to); setCustom(!custom); }}>Elegir fechas</Chip>}</View>
     <View style={s.spread}>{period.kind !== 'range' && <Button compact subtle label="Período anterior" onPress={() => step(-1)}>‹</Button>}<View style={s.flex}><Label strong style={s.center}>{periodLabel(period)}</Label><Label small style={s.center}>{period.partial ? 'Hasta ahora' : 'Período completo'} · {period.zone}</Label></View>{period.kind !== 'range' && <Button compact subtle label="Período siguiente" disabled={period.to >= today} onPress={() => step(1)}>›</Button>}</View>
-    {custom && <Panel><Field label="Desde (AAAA-MM-DD)" value={from} onChangeText={setFrom} /><Field label="Hasta, incluido (AAAA-MM-DD)" value={to} onChangeText={setTo} />{!!error && <Label strong>! {error}</Label>}<Button secondary onPress={apply}>Aplicar fechas</Button></Panel>}
+    {custom && <Panel><CalendarField label="Desde" value={from} maxDate={to < today ? to : today} onChange={setFrom} /><CalendarField label="Hasta, incluido" value={to} minDate={from} maxDate={today} onChange={setTo} />{!!error && <Label strong>! {error}</Label>}<Button secondary onPress={apply}>Aplicar fechas</Button></Panel>}
   </View>;
 }
 
-export function StatsScreen({ state, nowMs, openReport }: { state: DomainState; nowMs: number; openReport(): void }) {
+export function StatsScreen({ state, nowMs, openReport, openHistory }: { state: DomainState; nowMs: number; openReport(): void; openHistory?(): void }) {
   const c = useColors();
   const [period, setPeriod] = useState(() => periodFor('week', localDate(nowMs, state.settings.zone), state.settings.zone, nowMs));
   const [selected, setSelected] = useState<string[] | null>(null);
@@ -71,7 +72,9 @@ export function StatsScreen({ state, nowMs, openReport }: { state: DomainState; 
   const max = Math.max(...buckets.values(), 1);
   const counts = new Map(stats.perActivity.map(a => [a.activityId, a.count]));
   return <View style={s.stack}>
-    <Heading subtitle="Una mirada a lo que has registrado.">Tu ritmo</Heading>
+    <View style={[s.spread, { flexWrap: 'wrap' }]}><View style={{ flexGrow: 1 }}><Heading subtitle="Una mirada a lo que has registrado.">Tu ritmo</Heading></View>
+      {openHistory && <Button secondary compact onPress={openHistory}>Ver historial</Button>}
+    </View>
     <PeriodControls period={normalized} nowMs={nowMs} onChange={setPeriod} />
     {entries.some(entry => entry.revision.occurredAtMs > nowMs) && <Label small strong>Revisa la hora del dispositivo: se conservan los registros confirmados cuya hora efectiva es posterior al reloj actual.</Label>}
     <Button subtle compact onPress={() => setFilters(!filters)}>{filters ? 'Cerrar filtros' : selected ? `Filtrar actividades (${selected.length})` : 'Filtrar actividades'}</Button>

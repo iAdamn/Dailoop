@@ -13,6 +13,7 @@ jest.mock('react-native-reanimated', () => {
       return ref.current;
     },
     useAnimatedStyle: callback => callback(),
+    useAnimatedProps: callback => callback(),
     withTiming: (value, _options, complete) => { complete?.(true); return value; },
     withSpring: value => value,
     withSequence: (...animations) => animations.at(-1),

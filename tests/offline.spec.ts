@@ -26,7 +26,7 @@ test('exportación estática cargada permite crear, registrar, consultar y desca
   await page.getByRole('button',{name:'Crear actividad',exact:true}).click();
   await page.getByRole('button',{name:'Registrar Lectura sin red',exact:true}).click();
   await expect(page.getByText('✓ Registrado: Lectura sin red',{exact:true})).toBeVisible();
-  await page.getByRole('tab',{name:'Historial',exact:true}).click();
+  await page.getByRole('tab',{name:'Estadísticas',exact:true}).click(); await page.getByRole('button',{name:'Ver historial',exact:true}).click();
   await expect(page.getByRole('button',{name:/Lectura sin red/}).first()).toBeVisible();
   await page.getByRole('tab',{name:'Ajustes',exact:true}).click();
   await page.getByRole('button',{name:'Crear backup completo',exact:true}).click();
@@ -36,6 +36,6 @@ test('exportación estática cargada permite crear, registrar, consultar y desca
   expect(external).toEqual([]);
   await context.setOffline(false);
   await page.reload();
-  await page.getByRole('tab',{name:'Inicio',exact:true}).click();
+  await page.getByRole('tab',{name:'Registro',exact:true}).click();
   await expect(page.getByText(/1 registro hoy/)).toBeVisible();
 });

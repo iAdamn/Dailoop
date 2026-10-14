@@ -12,7 +12,7 @@ import { createV015State, V015_NOW } from './fixtures/v015';
 jest.mock('react-native-gesture-handler', () => {
   const pan = {
     enabled: () => pan, maxPointers: () => pan, activeOffsetX: () => pan,
-    failOffsetY: () => pan, onUpdate: () => pan, onEnd: () => pan, onFinalize: () => pan,
+    failOffsetY: () => pan, onStart: () => pan, onUpdate: () => pan, onEnd: () => pan, onFinalize: () => pan,
     maxDuration: () => pan, maxDistance: () => pan,
   };
   return { Gesture: { Pan: () => pan, Tap: () => pan, Exclusive: () => pan }, PointerType: { KEY: 3 },
@@ -85,7 +85,7 @@ test('the root UI reuses statistics across navigation and same-day clock ticks, 
   const props: DailoopUIProps = {
     state, nowMs: V015_NOW, mode: 'personal', storageLabel: 'QA unit', busy: false, error: null,
     activityColumns: 1, onActivityColumns: async () => undefined,
-    onClearError: () => undefined,
+    onClearError: () => undefined, onPlanning: async () => undefined, onCompleteReminder: async () => undefined, notificationStatus: 'unsupported', onEnableNotifications: async () => undefined,
     onCommand: async command => execute(state, command, { nowMs: V015_NOW, operationId: nextId(), nextId }),
     onReport: async options => buildReport(state, options),
     onSaveReport: async () => '', onCopyReport: async () => '', onShareReport: async () => '',
@@ -97,7 +97,7 @@ test('the root UI reuses statistics across navigation and same-day clock ticks, 
   const view = await render(<MotionProvider><DailoopUI {...props} /></MotionProvider>);
   const initialCalls = calculator.mock.calls.length;
   expect(initialCalls).toBeGreaterThan(0);
-  for (const label of ['Historial', 'Estadísticas', 'Inicio', 'Estadísticas', 'Ajustes', 'Estadísticas']) {
+  for (const label of ['Recordatorios', 'Estadísticas', 'Registro', 'Estadísticas', 'Ajustes', 'Estadísticas']) {
     await fireEvent(screen.getByRole('tab', { name: label }), 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
   }
   expect(screen.getByRole('header', { name: 'Tu ritmo' })).toBeVisible();

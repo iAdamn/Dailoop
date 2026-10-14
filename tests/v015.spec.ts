@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { APP_VERSION } from '../src/version';
 import { exportBackup, parseBackup } from '../src/domain';
 import { createV015State, V015_NOW } from './fixtures/v015';
 
 const digest = async (text: string) => createHash('sha256').update(text).digest('hex');
-const tab = async (page: Page, name: string) => page.getByRole('tab', { name, exact: true }).click();
+async function tab(page: Page, name: string) { await page.getByRole('tab', { name: name === 'Historial' ? 'Estadísticas' : name, exact: true }).click(); if (name === 'Historial') await page.getByRole('button', { name: 'Ver historial', exact: true }).click(); }
 const publicName = 'Actividad QA 002 con nombre largo y emoji repetido';
 const prefKey = 'dailoop.presentation.v1';
 const runtimeErrors = new WeakMap<Page, string[]>();
@@ -33,7 +34,7 @@ async function density(page: Page, columns: number) {
   const choice = page.getByRole('checkbox', { name: `${columns} ${columns === 1 ? 'columna' : 'columnas'}`, exact: true });
   await choice.click();
   await expect(choice).toBeChecked();
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
 }
 async function restore(page: Page, file: string) {
   await tab(page, 'Ajustes');
@@ -68,8 +69,9 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
     const firstBox = await first.boundingBox();
     const secondBox = await second.boundingBox();
     expect(firstBox).not.toBeNull(); expect(secondBox).not.toBeNull();
-    expect(firstBox!.height).toBeGreaterThanOrEqual(48);
-    expect(firstBox!.width).toBeGreaterThanOrEqual(48);
+    // CSS matrix coordinates can differ by a few ten-thousandths of a pixel.
+    expect(Number(firstBox!.height.toFixed(3))).toBeGreaterThanOrEqual(48);
+    expect(Number(firstBox!.width.toFixed(3))).toBeGreaterThanOrEqual(48);
     if (columns === 1) expect(secondBox!.y).toBeGreaterThan(firstBox!.y);
     else { expect(Math.abs(secondBox!.y - firstBox!.y)).toBeLessThan(2); expect(secondBox!.x).toBeGreaterThan(firstBox!.x); }
     await page.screenshot({ path: test.info().outputPath(`density-${columns}.png`) });
@@ -90,7 +92,7 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
   expect(recorded.parsed.state.activities).toEqual(original.activities);
   expect(recorded.parsed.state.activityRevisions).toEqual(original.activityRevisions);
   expect(recorded.parsed.state.settings).toEqual(original.settings);
-  expect(recorded.envelope.appVersion).toBe('0.1.7');
+  expect(recorded.envelope.appVersion).toBe(APP_VERSION);
   expect(recorded.parsed.state.settings).not.toHaveProperty('activityColumns');
   await page.reload();
   await expect(page.getByRole('checkbox', { name: '4 columnas', exact: true })).toBeChecked();
@@ -99,7 +101,7 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
   const restored = await backup(page);
   expect(restored.parsed.state).toEqual(original);
   await page.setViewportSize({ width: 280, height: 844 });
-  await tab(page, 'Inicio');
+  await tab(page, 'Registro');
   await expect(page.getByText(/Tu elección de 4 columnas se adapta a/)).toBeVisible();
   await tab(page, 'Ajustes');
   await expect(page.getByRole('checkbox', { name: '4 columnas', exact: true })).toBeChecked();

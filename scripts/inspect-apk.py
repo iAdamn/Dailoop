@@ -34,6 +34,7 @@ BACKUP_DOMAINS = {
 }
 # Approved, locally bundled static faces from assets/fonts/manifest.json.
 EXPECTED_FONTS = {
+    "DailoopSymbols.ttf": "fe973a97686a5ffd2dbdf86d1266cea44972544aa48cd26e1a80c4fb89d71d07",
     "Manrope-Bold.ttf": "4aed5d180a4f41ed21f07e678486f889bb40eb0ddf5f473769b6302f507d1e36",
     "Manrope-Medium.ttf": "88d3f8ef004b53483a202772d09acaab17ca99dd41905d9b4ab07ac635632378",
     "Manrope-Regular.ttf": "6383bd9f81e56d61139884d8e42cb7b2146a11dde4efde55c8bff1e4c2c0bbe8",
@@ -288,14 +289,28 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
             and int_value(xml_attribute(child, "protectionLevel")) == 2
             for child in matching_children(manifest, "permission"))
         # expo-audio uses Android's normal audio-settings permission for local playback.
-        # Network, recording, vibration, storage and all other platform permissions remain forbidden.
-        allowed = {"android.permission.MODIFY_AUDIO_SETTINGS"}
+        # Local optional notifications survive reboot; no push/network/badges.
+        allowed = {"android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.POST_NOTIFICATIONS",
+                   "android.permission.RECEIVE_BOOT_COMPLETED"}
         if declared_signature:
             allowed.add(custom_permission)
         unexpected = sorted(set(requested) - allowed)
         report["permissions"] = requested
         check("permissions.minimum", not unexpected, {"unexpected": unexpected, "requested": requested,
-              "policy": "Only MODIFY_AUDIO_SETTINGS for local playback and the package's declared signature receiver permission are allowed"})
+              "policy": "Local audio, optional local notifications/boot restore and the package's signature receiver only"})
+        notification_permissions = {"android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"}
+        check("permissions.localNotifications", notification_permissions.issubset(requested),
+              {"required": sorted(notification_permissions), "requested": requested})
+        check("manifest.hardwareAccelerated", int_value(xml_attribute(app, "hardwareAccelerated")) not in (None, 0),
+              xml_attribute(app, "hardwareAccelerated"))
+        receivers = [node for node in matching_children(app, "receiver")
+                     if (string_value(xml_attribute(node, "name")) or "").endswith(".NotificationsService")]
+        actions = {string_value(xml_attribute(action, "name")) for receiver in receivers
+                   for intent in matching_children(receiver, "intent-filter") for action in matching_children(intent, "action")}
+        check("notifications.bootReceiver", len(receivers) == 1
+              and int_value(xml_attribute(receivers[0], "exported")) == 0
+              and {"android.intent.action.BOOT_COMPLETED", "android.intent.action.MY_PACKAGE_REPLACED"}.issubset(actions),
+              {"receivers": receivers, "actions": sorted(actions)})
 
         for attribute, resource_name in (("fullBackupContent", "dailoop_backup_rules"),
                                          ("dataExtractionRules", "dailoop_data_extraction_rules")):

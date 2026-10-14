@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'local.dailoop'
+version = '0.5.0'
+
+android {
+  namespace 'local.dailoop.glass'
+  defaultConfig {
+    versionCode 1
+    versionName '0.5.0'
+  }
+}

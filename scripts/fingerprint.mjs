@@ -9,6 +9,7 @@ async function walk(relative){
   const entries=await readdir(path.join(root,relative),{withFileTypes:true});
   const files=[];
   for(const entry of entries){
+    if(entry.isDirectory() && ['build','.gradle','node_modules'].includes(entry.name))continue;
     const name=path.posix.join(relative,entry.name);
     if(entry.isDirectory())files.push(...await walk(name));
     else if(entry.isFile())files.push(name);
@@ -23,7 +24,7 @@ async function fingerprints(paths){
   }
   return {treeSha256:hash(JSON.stringify(files)),files};
 }
-const roots=['app','src','tests','scripts','assets','docs','plugins','licenses'];
+const roots=['app','src','tests','scripts','assets','docs','plugins','licenses','modules'];
 const sourceFiles=['.gitignore','AGENTS.md','README.md','LICENSE','THIRD-PARTY-NOTICES.md','app.json','package.json','package-lock.json','tsconfig.json','metro.config.js','eslint.config.js','jest.config.js','playwright.config.ts','playwright.release.config.ts'];
 for(const directory of roots)sourceFiles.push(...await walk(directory));
 const source=await fingerprints(sourceFiles);

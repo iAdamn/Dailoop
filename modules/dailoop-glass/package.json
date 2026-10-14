@@ -1,0 +1,7 @@
+{
+  "name": "dailoop-glass",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Small local GPU refraction view for Dailoop's bottom navigation",
+  "main": "../../src/ui/WaterLens.native.tsx"
+}

@@ -1,4 +1,4 @@
-/** Static, bundled OFL faces; loading never contacts a font service. */
+/** Bundled OFL text faces and original MIT symbols; loading stays offline. */
 export const typefaces = {
   display: 'Outfit-SemiBold',
   displayBold: 'Outfit-Bold',
@@ -6,6 +6,7 @@ export const typefaces = {
   medium: 'Manrope-Medium',
   semibold: 'Manrope-SemiBold',
   bold: 'Manrope-Bold',
+  symbols: 'DailoopSymbols',
 } as const;
 
 export const fontAssets = {
@@ -15,4 +16,5 @@ export const fontAssets = {
   [typefaces.medium]: require('../../assets/fonts/Manrope-Medium.ttf'),
   [typefaces.semibold]: require('../../assets/fonts/Manrope-SemiBold.ttf'),
   [typefaces.bold]: require('../../assets/fonts/Manrope-Bold.ttf'),
+  [typefaces.symbols]: require('../../assets/icons/DailoopSymbols.ttf'),
 };

@@ -5,10 +5,12 @@ import { AppState, Platform, Pressable, ScrollView, Text, View } from 'react-nat
 import DailoopUI, { type UIRoute } from './ui';
 import { session, type SessionSnapshot } from './infrastructure/session';
 import { pickBackup, saveText, copyText, shareText } from './infrastructure/files';
-import { buildReport, parseBackup, type Command, type ReportOptions, type ParsedBackup, type ReportModel } from './domain';
+import { buildReport, localDate, parseBackup, type Command, type PlanningCommand, type ReportOptions, type ParsedBackup, type ReportModel } from './domain';
+import { notificationPlan } from './infrastructure/notificationPlan';
+import { useLocalNotifications } from './infrastructure/notifications';
 import { digest } from './infrastructure/crypto';
 import {RECOVERY_MESSAGE} from './infrastructure/store';
-import { presentationPreferences, defaultPresentationPreferences, type ActivityColumns } from './infrastructure/preferences';
+import { presentationPreferences, defaultPresentationPreferences, type ActivityColumns, type HomeListMode } from './infrastructure/preferences';
 import { MotionProvider } from './ui/motion';
 
 const message=(e:unknown)=>e instanceof Error?e.message:String(e);
@@ -19,7 +21,7 @@ function initialRoute():UIRoute {
   if(Platform.OS!=='web')return {tab:'home'};
   const parameters=new URLSearchParams(location.hash.replace(/^#/,''));
   const tab=parameters.get('tab');
-  return {tab:tab==='history'||tab==='stats'||tab==='settings'?tab:'home',activityId:parameters.get('activity')||undefined,report:parameters.get('report')==='1'};
+  return {tab:tab==='history'?'stats':tab==='reminders'||tab==='stats'||tab==='settings'?tab:'home',history:tab==='history'||(tab==='stats'&&parameters.get('history')==='1'),activityId:parameters.get('activity')||undefined,report:parameters.get('report')==='1'};
 }
 export default function Application(){
   const [snapshot,setSnapshot]=useState<SessionSnapshot>(session.snapshot);
@@ -32,6 +34,14 @@ export default function Application(){
   const [presentation,setPresentation]=useState(defaultPresentationPreferences);
   const [presentationBusy,setPresentationBusy]=useState(false);
   const [presentationError,setPresentationError]=useState<string|null>(null);
+  const [notificationTarget,setNotificationTarget]=useState<unknown>(null);
+  const [notificationEpoch,setNotificationEpoch]=useState(0);
+  const notificationOpened=useCallback((data:unknown)=>setNotificationTarget(data),[]);
+  const {status:notificationStatus,request:requestNotifications,synchronize:synchronizeNotifications}=useLocalNotifications(notificationOpened);
+  const notificationDay=snapshot.state?localDate(nowMs,snapshot.state.settings.zone):'';
+  useEffect(()=>{
+    if(snapshot.state && !snapshot.readOnly && snapshot.mode==='personal')void synchronizeNotifications(notificationPlan(snapshot.state,Date.now()));
+  },[snapshot.state,snapshot.readOnly,snapshot.mode,synchronizeNotifications,notificationStatus,notificationDay,notificationEpoch]);
   useEffect(()=>{
     const unsubscribe=presentationPreferences.subscribe(setPresentation);
     void presentationPreferences.load().catch(e=>setPresentationError(`No se pudieron leer tus preferencias. ${message(e)}`));
@@ -43,11 +53,17 @@ export default function Application(){
     catch(e){setPresentationError(`No se guardó la distribución. ${message(e)}`);}
     finally{setPresentationBusy(false);}
   },[]);
+  const setHomeListMode=useCallback(async(mode:HomeListMode)=>{
+    setPresentationBusy(true);setPresentationError(null);
+    try{await presentationPreferences.setHomeListMode(mode);}
+    catch(e){setPresentationError(`No se guardó el tipo de lista. ${message(e)}`);}
+    finally{setPresentationBusy(false);}
+  },[]);
   useEffect(()=>{
     const unsubscribe=session.subscribe(setSnapshot);
     void session.init().catch(e=>setError(message(e)));
     const tick=setInterval(()=>setNow(Date.now()),15_000);
-    const active=AppState.addEventListener('change',state=>{if(state==='active')setNow(Date.now());});
+    const active=AppState.addEventListener('change',state=>{if(state==='active'){setNow(Date.now());setNotificationEpoch(value=>value+1);}});
     return ()=>{unsubscribe();clearInterval(tick);active.remove();};
   },[]);
   useEffect(()=>{
@@ -60,14 +76,38 @@ export default function Application(){
     setRoute(next);
     if(Platform.OS==='web'){
       const params=new URLSearchParams({tab:next.tab});
-      if(next.activityId)params.set('activity',next.activityId);if(next.report)params.set('report','1');
+      if(next.activityId)params.set('activity',next.activityId);if(next.report)params.set('report','1');if(next.history)params.set('history','1');
       history.pushState(null,'',`#${params.toString()}`);
     }
   },[]);
+  useEffect(()=>{
+    if(!snapshot.state || !notificationTarget || typeof notificationTarget!=='object')return;
+    const target=notificationTarget as Record<string,unknown>;
+    // Deliver the external tap after the database has opened, outside this
+    // render's effect. Cancelling protects a target replaced during startup.
+    const databaseId=snapshot.state.meta.databaseId;
+    const pending=setTimeout(()=>{
+      if(target.databaseId===databaseId && typeof target.activityId==='string') {
+        navigate(target.kind==='reminder'?{tab:'reminders'}:{tab:'home',activityId:target.activityId});
+      }
+      setNotificationTarget(null);
+    },0);
+    return ()=>clearTimeout(pending);
+  },[notificationTarget,snapshot.state,navigate]);
   const mustWrite=useCallback(()=>{if(session.snapshot.recoveryRequired||session.store?.recoveryRequired)throw new Error(RECOVERY_MESSAGE);if(session.snapshot.readOnly)throw new Error('Esta pestaña es de solo lectura. Regresa a la primera pestaña.');if(session.snapshot.reloading)throw new Error('Espera a que termine el cambio de base.');if(!session.store)throw new Error('Los datos aún no están listos.');return session.store;},[]);
   const command=useCallback(async(command:Command,operationId?:string)=>{
     setError(null);
     try{const result=await mustWrite().dispatch(command,operationId);await session.refresh();setNow(Date.now());return result;}
+    catch(e){session.noteStoreError(e);setError(message(e));throw e;}
+  },[mustWrite]);
+  const planning=useCallback(async(command:PlanningCommand,operationId?:string)=>{
+    setError(null);
+    try{await mustWrite().dispatchPlanning(command,operationId);await session.refresh();setNow(Date.now());}
+    catch(e){session.noteStoreError(e);setError(message(e));throw e;}
+  },[mustWrite]);
+  const completeReminder=useCallback(async(reminderId:string)=>{
+    setError(null);
+    try{await mustWrite().completeReminder(reminderId);await session.refresh();setNow(Date.now());}
     catch(e){session.noteStoreError(e);setError(message(e));throw e;}
   },[mustWrite]);
   const inspect=useCallback(async()=>{
@@ -92,8 +132,10 @@ export default function Application(){
   return <MotionProvider><View style={{flex:1}}>{(snapshot.readOnly||snapshot.recoveryRequired)&&<View accessibilityRole="alert" style={{backgroundColor:'#DCCFFF',padding:12}}><Text style={{color:'#23263A',fontFamily:typefaces.body,textAlign:'center'}}>{snapshot.recoveryRequired?RECOVERY_MESSAGE:'Solo lectura · usa la primera pestaña para registrar. Si la cerraste, recarga esta pestaña.'}</Text>{snapshot.recoveryRequired&&Platform.OS==='web'&&<Pressable accessibilityRole="button" onPress={()=>location.reload()} style={{minHeight:48,justifyContent:'center'}}><Text style={{color:'#23263A',fontFamily:typefaces.body,textAlign:'center',fontWeight:'700'}}>Recargar y recuperar almacenamiento</Text></Pressable>}</View>}<DailoopUI key={`${snapshot.state.meta.databaseId}-${viewRevision}`}
     state={snapshot.state} nowMs={nowMs} mode={snapshot.mode} storageLabel={snapshot.storageLabel} initialNotice={initialNotice}
     activityColumns={presentation.activityColumns} onActivityColumns={setActivityColumns} presentationBusy={presentationBusy}
+    homeListMode={presentation.homeListMode} onHomeListMode={setHomeListMode}
     busy={busy||!!snapshot.reloading} readOnly={snapshot.readOnly||!!snapshot.recoveryRequired||!!snapshot.reloading} readOnlyReason={disabledReason} error={error||snapshot.error||presentationError} onClearError={clearError} route={route} onNavigate={navigate}
     onCommand={command} onReport={report}
+    onPlanning={planning} onCompleteReminder={completeReminder} notificationStatus={notificationStatus} onEnableNotifications={requestNotifications}
     onSaveReport={saveReport} onCopyReport={copyReport} onShareReport={shareReport}
     onInspectBackup={inspect} onRestoreBackup={restore}
     onResetDemo={resetDemo} onExportBackup={exportBackup} onMode={openMode}
