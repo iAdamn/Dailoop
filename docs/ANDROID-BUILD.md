@@ -47,6 +47,11 @@ Para instalar, copiar únicamente el APK al teléfono y abrirlo. Android puede s
 
 ## Emulador de esta fase
 
-El destino de pruebas es un AVD propio `Dailoop_API_37` con imagen oficial Android 17 / API 37, sin cuenta personal. Sus datos están en `output/android-emulator`. Es distinto del Samsung S26 Ultra del usuario. Todos los comandos ADB deben indicar el serial comprobado `emulator-5580`; no elegir automáticamente un teléfono conectado.
+El destino de pruebas es un AVD propio `Dailoop_API_37` con imagen oficial Android 17 / API 37, sin cuenta personal. Sus datos están en `output/android-emulator`. Es distinto del Samsung S26 Ultra del usuario. El antiguo serial `emulator-5580` está bajo control externo y no debe operarse. Para QA de este proyecto se reservó `emulator-5590`; comprobar su identidad antes de usarlo y nunca elegir automáticamente un teléfono conectado.
 
 Las pruebas de arranque, SQLite, documentos e interfaz deben registrar modo avión, versión, hash del APK, resultados y capturas. TalkBack, fluidez, gestos y comportamiento del fabricante en el S26 Ultra siguen requiriendo comprobación física si no hay un teléfono conectado.
+
+
+## Audio breve desde 0.1.7
+
+`npm ci` y el script de compilación aplican `scripts/patch-android-audio.mjs` a `expo-audio@57.0.5`. Media3 1.9 declara WAKE_LOCK y su builder activa un wake lock local por defecto; para los avisos breves en primer plano de Dailoop se fija explícitamente `C.WAKE_MODE_NONE`, antes de excluir el permiso. El parche comprueba versión/anchor y es idempotente. Referencia: [ExoPlayer.Builder.setWakeMode](https://developer.android.com/reference/androidx/media3/exoplayer/ExoPlayer.Builder#setWakeMode(int)). No se habilita reproducción/grabación de fondo ni micrófono. La inspección acepta únicamente MODIFY_AUDIO_SETTINGS para audio local y el permiso de receiver privado de firma, y comprueba los bytes originales de ambos WAV dentro del APK.

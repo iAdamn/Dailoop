@@ -1,5 +1,13 @@
 # Dailoop execution contract
 
+## Active handoff: Dailoop 0.1.7 session close
+
+On 2026-10-14 the user explicitly authorized pushing today's work to GitHub in several coherent commits and producing APK 0.1.7. Version 0.1.7 / Android versionCode 5, same package and release signing identity. Read `docs/RELEASE-0.1.7.md` for actual build/verification status. This release combines the approved Flash changes: haptics/glass audio, compact activity form/full offline emoji popup, expanded glass colors, button/dialog pop and retained-tab appearance. Preserve SQLite schema/audit and backup v1. Existing colors remain valid; backups with new colors need 0.1.7 or later.
+
+Work only in this React Native directory. No changes to sibling Flutter or another project. Never operate externally controlled emulator-5580 or the user's personal browser database. Source push and local signed APK are authorized; store/cloud publication and installation on the personal phone are not implied. Physical S26 haptics/audio, keyboard and frame pacing must be classified separately from Web/binary evidence. Further Flash modifications are singular; further APK or Git publication requires another explicit instruction.
+
+The 0.1.6/0.1.5 handoffs below are historical; preserve their versioned artifacts and evidence.
+
 ## Active handoff: Dailoop 0.1.6 navigation patch
 
 The user reported remaining mobile tab delay after testing 0.1.5 and requested retained screens plus dragging **only the bottom bar**. Read `docs/NAVIGATION-0.1.6.md` and `docs/NAVIGATION-0.1.6-QA.md` for the current implementation/evidence. Other visual changes await the user's next item. Keep SQLite/audit/backup behavior, existing colors/fonts and signing identity. Version 0.1.6 / Android versionCode 4; local APK and preview only. The previous authorized 0.1.5 source push is already complete; no new push/release is implied. Never operate externally controlled emulator-5580; QA exclusively operates this project's emulator-5590. Preserve versioned 0.1.5 evidence and APKs.

@@ -10,6 +10,8 @@ El desarrollo local **0.1.5** incorpora teclado visible, distribución de una a 
 
 El parche local **0.1.6** mantiene las cuatro pantallas preparadas y permite cambiar de pestaña arrastrando la barra inferior. El [contrato y estado de navegación](docs/NAVIGATION-0.1.6.md) y sus [pruebas](docs/NAVIGATION-0.1.6-QA.md) distinguen el funcionamiento comprobado de la fluidez pendiente de confirmar en el teléfono.
 
+El código actual **0.1.7** añade respuesta háptica y sonidos de vidrio, formulario compacto con selector de emojis completo sin conexión, colores claros de toda la rueda y animaciones rápidas de botones, ventanas y pestañas. La [entrega 0.1.7](docs/RELEASE-0.1.7.md) identifica el APK local firmado y sus comprobaciones; el enlace público histórico de arriba continúa apuntando a 0.1.0.
+
 ## Probar la preview
 
 La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en **http://localhost:8793**. Son orígenes distintos y mantienen bases distintas. Usar Edge o Chromium con Web Locks y aislamiento COOP/COEP.
@@ -53,6 +55,8 @@ npx tsx --test tests/stress.test.ts
 npm run check:expo
 npx expo-doctor
 npm run test:e2e
+# Regresión de producción, con la preview exportada en 8795:
+npx playwright test --config playwright.release.config.ts
 ```
 
 Los E2E requieren ambas previews abiertas: desarrollo 8793 para contratos/rutas de QA y exportación 8795 para la sesión offline. Un worker y contextos aislados evitan mezclar bases de pruebas con las del usuario. Playwright usa el navegador Chromium disponible o Edge local. Los fixtures son ficticios. Las rutas `__spike` y `__storage-tests` sólo funcionan en desarrollo; no son funciones de la app personal.
