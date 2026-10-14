@@ -1,5 +1,8 @@
 /** Portable domain data. Times are UTC milliseconds; all persisted IDs are UUIDs. */
-export const COLORS = ['#6F5BFF', '#9A7CFF', '#DCCFFF', '#8FD8FF', '#F7F7FC', '#23263A'] as const;
+// Keep every original value valid for existing activities, history and backups.
+export const COLORS = ['#6F5BFF', '#9A7CFF', '#DCCFFF', '#8FD8FF', '#F7F7FC', '#23263A',
+  '#F4B2B8', '#F4BBA8', '#F6C9A2', '#F6D7A1', '#F3E6A2', '#DCE9AA',
+  '#B8DFBA', '#A9DFD2', '#AFD3F6', '#BCC6F5', '#D3BEF4', '#E7B7DB'] as const;
 export type Color = typeof COLORS[number];
 export type Theme = 'system' | 'light' | 'dark';
 export interface Settings { zone: string; hourFormat: '24h' | '12h'; weekStartsOn: 1; theme: Theme }

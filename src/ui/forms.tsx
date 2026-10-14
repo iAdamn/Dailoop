@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { COLORS, formatDateTime, localDateTime, localDateTimeCandidates } from '../domain';
+import { Keyboard, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { formatDateTime, localDateTime, localDateTimeCandidates } from '../domain';
 import type { Color, Command, CurrentActivity, EffectiveEntry } from '../domain/types';
-import { Button, Chip, Field, Label, ModalFrame, Panel, s, Toggle, webSpaceKey, webFocusRing } from './components';
-import { palette } from './tokens';
+import { Button, Chip, Field, GlassLayer, Label, ModalFrame, Panel, Toggle, useColors, webSpaceKey, webFocusRing } from './components';
+import { alpha, palette } from './tokens';
 import { typefaces } from './typography';
+import { useInteractionFeedback } from './feedback';
+import { MotionPressable } from './motion';
+import { EmojiPicker } from './EmojiPicker';
+import { activityColors } from './activityColors';
 
 export type SubmitCommand = (command: Command, key: string) => Promise<unknown>;
 const message = (error: unknown) => error instanceof Error ? error.message : 'No se pudo guardar. Puedes volver a intentarlo.';
 
 function Discard({ onDiscard, onContinue }: { onDiscard(): void; onContinue(): void }) {
-  return <Panel><Label strong>Hay cambios sin guardar</Label><Label>Si cierras ahora, perderás los cambios de este formulario.</Label><Button onPress={onContinue}>Seguir editando</Button><Button secondary onPress={onDiscard}>Descartar cambios</Button></Panel>;
+  return <Panel><Label strong>Hay cambios sin guardar</Label><Label>Si cierras ahora, perderás los cambios de este formulario.</Label><Button feedback="selection" onPress={onContinue}>Seguir editando</Button><Button secondary onPress={onDiscard}>Descartar cambios</Button></Panel>;
 }
 
 export function ActivityForm({ activity, activities, onClose, submit }: { activity?: CurrentActivity; activities: CurrentActivity[]; onClose(): void; submit: SubmitCommand }) {
+  const colors = useColors();
+  const respond = useInteractionFeedback();
+  const selectColor = (value: Color) => { respond('selection'); setColor(value); };
   const [name, setName] = useState(activity?.name || '');
   const [emoji, setEmoji] = useState(activity?.emoji || '✨');
-  const [emojiSearch, setEmojiSearch] = useState('');
+  const [emojiPicker, setEmojiPicker] = useState(false);
   const [color, setColor] = useState<Color>(activity?.color || palette.lavender);
   const [isPrivate, setPrivate] = useState(activity?.isPrivate || false);
   const [category, setCategory] = useState(activity?.category || '');
@@ -35,17 +43,36 @@ export function ActivityForm({ activity, activities, onClose, submit }: { activi
   };
   return <ModalFrame canClose={!dirty && !saving} title={activity ? 'Editar actividad' : 'Una nueva actividad'} subtitle="Ponle nombre a eso que quieres recordar." onClose={() => dirty && !saving ? setDiscard(true) : !saving && onClose()}>
     {discard ? <Discard onDiscard={onClose} onContinue={() => setDiscard(false)} /> : <>
-      <Field label="Nombre de la actividad" value={name} onChangeText={setName} placeholder="Por ejemplo, leer un rato" autoFocus autoCapitalize="sentences" hint="Hasta 80 caracteres visibles. El nombre puede repetirse." />
+      <View style={{ gap: 8 }}><View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
+        <Field containerStyle={{ flex: 1, minWidth: 0 }} label="Nombre de la actividad" value={name} onChangeText={setName} placeholder="Por ejemplo, leer un rato" autoFocus autoCapitalize="sentences" />
+        <MotionPressable feedback={false} accessibilityRole="button" accessibilityLabel={`Cambiar emoji, actual ${emoji}`} accessibilityHint="Abre el selector de emojis" onPress={() => { respond('selection'); Keyboard.dismiss(); setEmojiPicker(true); }}
+          style={({ focused }: { pressed: boolean; focused?: boolean }) => ({ width: 64, height: 54, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, ...webFocusRing(focused) })}>
+          <GlassLayer radius={17} dark={colors.dark} strength="control" /><Text accessible={false} style={{ fontSize: 27 }}>{emoji}</Text><Text accessible={false} style={{ color: colors.muted, fontSize: 14 }}>⌄</Text>
+        </MotionPressable>
+      </View>
+      <Label small>Hasta 80 caracteres visibles. El nombre puede repetirse.</Label>
       {duplicate && <Label small strong>Ya existe una actividad con este nombre. Puedes guardar otra: tendrá su propio historial.</Label>}
-      <Field label="Emoji" value={emoji} onChangeText={setEmoji} placeholder="✨" hint="Un emoji. También puedes usar el teclado de tu dispositivo." />
-      <Field label="Buscar entre los emojis sugeridos" value={emojiSearch} onChangeText={setEmojiSearch} placeholder="Libro, planta, café…" />
-      <View style={s.wrap}>{[['📖', 'libro leer lectura'], ['🌿', 'planta regar jardín'], ['☕', 'café bebida'], ['🚶', 'caminar paseo'], ['💧', 'agua beber'], ['🎨', 'arte pintar'], ['💬', 'hablar conversar llamada'], ['✨', 'estrellas brillo']].filter(([symbol, words]) => !emojiSearch || `${symbol} ${words}`.toLocaleLowerCase('es-CO').includes(emojiSearch.toLocaleLowerCase('es-CO'))).map(([item, description]) => <Chip key={item} selected={emoji === item} label={`Usar emoji ${item}, ${description}`} onPress={() => setEmoji(item)}>{item}</Chip>)}</View>
-      <Label strong>Color de tu actividad</Label>
-      <View style={s.wrap}>{COLORS.map((item, i) => <Pressable key={item} onPress={() => setColor(item)} {...webSpaceKey(() => setColor(item))} accessibilityRole="radio" accessibilityLabel={['Violeta', 'Lila', 'Lavanda', 'Celeste', 'Claro', 'Oscuro'][i]} accessibilityState={{ selected: color === item, checked: color === item }} aria-checked={color === item} style={({ focused }: { pressed: boolean; focused?: boolean }) => ({ width: 54, height: 54, borderRadius: 18, padding: 4, borderWidth: color === item || focused ? 3 : 1, borderColor: focused ? palette.violet : palette.lilac, ...webFocusRing(focused) })}><View style={{ backgroundColor: item, flex: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>{color === item && <Text style={{ color: item === palette.ink ? palette.base : palette.ink, fontSize: 20, fontFamily: typefaces.semibold }}>✓</Text>}</View></Pressable>)}</View>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Label strong>Color de tu actividad</Label>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Color de tu actividad" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+          {activityColors.map(item => <MotionPressable feedback={false} key={item.color} onPress={() => selectColor(item.color)} {...webSpaceKey(() => selectColor(item.color))}
+            accessibilityRole="radio" accessibilityLabel={item.name} accessibilityState={{ checked: color === item.color }} aria-checked={color === item.color}
+            style={({ focused }: { pressed: boolean; focused?: boolean }) => ({ width: 48, height: 48, borderRadius: 16, padding: 3, borderWidth: color === item.color || focused ? 2 : 1,
+              borderColor: color === item.color ? colors.text : colors.surfaceEdge, ...webFocusRing(focused, colors.dark ? palette.lavender : palette.violet) })}>
+            <View style={{ flex: 1, borderRadius: 11, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              <LinearGradient colors={[alpha(item.color, 0.68), item.color, alpha(item.color, 0.7)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
+              <LinearGradient colors={[alpha(palette.base, 0.65), alpha(palette.base, 0.04), alpha(palette.base, 0.2)]} locations={[0, 0.5, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.65, y: 1 }} style={{ position: 'absolute', inset: 0, borderRadius: 11, borderWidth: 1, borderColor: alpha(palette.base, 0.6) }} />
+              {color === item.color && <Text accessible={false} style={{ color: item.color === palette.ink ? palette.base : palette.ink, fontSize: 20, fontFamily: typefaces.semibold }}>✓</Text>}
+            </View>
+          </MotionPressable>)}
+        </View>
+      </View>
       <Field label="Categoría (opcional)" value={category} onChangeText={setCategory} placeholder="Por ejemplo, tiempo para mí" />
       <Toggle label="Actividad privada" detail="No se incluirá inicialmente en reportes. Esto no cifra ni bloquea tus datos." value={isPrivate} onChange={setPrivate} />
       {!!error && <Label strong>! {error}</Label>}
       <Button onPress={save} busy={saving} disabled={!name.trim() || !emoji.trim()}>{activity ? 'Guardar cambios' : 'Crear actividad'}</Button>
+      {emojiPicker && <EmojiPicker value={emoji} onClose={() => setEmojiPicker(false)} onSelect={value => { setEmoji(value); setEmojiPicker(false); }} />}
     </>}
   </ModalFrame>;
 }
@@ -93,7 +120,7 @@ export function EntryForm({ activity, entry, nowMs, zone, onClose, submit }: { a
       {entry && <Label small strong>Se conservará la versión anterior.</Label>}
       {review && occurredAtMs != null && <Panel><Label strong>{entry ? 'Revisa la corrección' : 'Revisa el registro'}</Label>{entry && <Label small>Antes: {formatDateTime(entry.revision.occurredAtMs, zone)}</Label>}<Label>Ocurrió el: {formatDateTime(occurredAtMs, zone)}</Label><Label small>{entry ? 'La fecha de creación original se conservará.' : 'La fecha de creación será el momento de guardarlo.'}</Label>{note !== (entry?.revision.note || '') && <Label small>Nota: {note || 'Sin nota'}</Label>}</Panel>}
       {!!error && <Label strong>! {error}</Label>}
-      <Button disabled={!valid} busy={saving} onPress={review ? save : () => setReview(true)}>{review ? (entry ? 'Confirmar corrección' : 'Guardar registro') : 'Revisar antes de guardar'}</Button>
+      <Button feedback={review ? 'action' : 'selection'} disabled={!valid} busy={saving} onPress={review ? save : () => setReview(true)}>{review ? (entry ? 'Confirmar corrección' : 'Guardar registro') : 'Revisar antes de guardar'}</Button>
     </>}
   </ModalFrame>;
 }

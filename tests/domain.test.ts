@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { addCalendarDays, assertZone, buildReport, canonicalize, computeStats, createEmptyState, currentSequence, DomainError, effectiveEntries, elapsedSince, execute, exportBackup, formatTime, lastOccurredAt, localDate, localDateTimeCandidates, makePeriod, parseBackup, periodFor, previousPeriod, resolveLocalDateTime, selectActivities, startOfLocalDay, validateState, type Command, type DomainState, type ReportOptions } from '../src/domain';
+import { COLORS, addCalendarDays, assertZone, buildReport, canonicalize, computeStats, createEmptyState, currentSequence, DomainError, effectiveEntries, elapsedSince, execute, exportBackup, formatTime, lastOccurredAt, localDate, localDateTimeCandidates, makePeriod, parseBackup, periodFor, previousPeriod, resolveLocalDateTime, selectActivities, startOfLocalDay, validateState, type Command, type DomainState, type ReportOptions } from '../src/domain';
 
 const NOW = Date.parse('2026-10-12T17:00:00.000Z');
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -174,4 +174,19 @@ test('repeated timezone validation remains strict for invalid, non-string and pr
 test('indexed report audit preserves revision order even when storage rows are unordered', () => {
   const f = setup(); const a = f.activity(); const first = f.entry(a, '2026-09-01T08:00:00-05:00'); const second = f.entry(a, '2026-09-02T08:00:00-05:00'); f.run({ type: 'correctEntry', entryId: first, note: 'Nueva' }); f.run({ type: 'voidEntry', entryId: second }); f.run({ type: 'restoreEntry', entryId: second }); const unordered = structuredClone(f.state()); unordered.entryRevisions.reverse();
   const options = reportOptions([a], { includeAudit: true, includeNotes: true }); assert.deepEqual(buildReport(unordered, options), buildReport(f.state(), options)); assert.deepEqual(buildReport(unordered, options).audit.map(row => row.revisions.map(revision => revision.kind)), [['create', 'correct'], ['create', 'void', 'restore']]);
+});
+
+
+test('all expanded glass colors and original colors survive validated backup restore', async () => {
+  const f = setup();
+  for (const color of COLORS) f.run({ type: 'createActivity', name: `Color ${color}`, emoji: '👩🏽‍💻', color });
+  const before = f.state();
+  const text = await exportBackup(before, { backupId: f.nextId(), exportedAtMs: NOW, appVersion: '0.1.6' }, digest);
+  const restored = await parseBackup(text, digest);
+  assert.deepEqual(restored.state, before);
+  assert.deepEqual(selectActivities(restored.state).map(activity => activity.color), [...COLORS]);
+  const oldId = before.activities[0].id;
+  f.run({ type: 'updateActivity', activityId: oldId, changes: { color: '#F3E6A2', emoji: '🇨🇴' } });
+  validateState(f.state());
+  assert.equal(f.state().activityRevisions[0].color, '#6F5BFF');
 });

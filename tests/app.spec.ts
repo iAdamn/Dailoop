@@ -48,7 +48,10 @@ async function createActivity(page: Page, name: string, isPrivate = false) {
   await tab(page, 'Inicio');
   await page.getByRole('button', { name: '＋ Nueva actividad', exact: true }).click();
   await page.getByLabel('Nombre de la actividad', { exact: true }).fill(name);
-  await page.getByLabel('Emoji', { exact: true }).fill('📖');
+  await page.getByRole('button', { name: /^Cambiar emoji, actual / }).click();
+  await page.getByRole('button', { name: 'Usar mi teclado', exact: true }).click();
+  await page.getByLabel('Escribe o pega un emoji', { exact: true }).fill('📖');
+  await page.getByRole('button', { name: 'Usar este emoji', exact: true }).click();
   if (isPrivate) await page.getByRole('switch', { name: 'Actividad privada', exact: true }).click();
   await page.getByRole('button', { name: 'Crear actividad', exact: true }).click();
   await expect(page.getByRole('button', { name: `Registrar ${name}`, exact: true })).toBeVisible();
@@ -200,7 +203,10 @@ test('editar, archivar y restaurar una actividad conserva identidades y registro
   await page.getByRole('button', { name: `Opciones de ${originalName}`, exact: true }).click();
   await page.getByRole('button', { name: 'Editar actividad', exact: true }).click();
   await page.getByLabel('Nombre de la actividad', { exact: true }).fill(updatedName);
-  await page.getByLabel('Emoji', { exact: true }).fill('🌿');
+  await page.getByRole('button', { name: /^Cambiar emoji, actual / }).click();
+  await page.getByRole('button', { name: 'Usar mi teclado', exact: true }).click();
+  await page.getByLabel('Escribe o pega un emoji', { exact: true }).fill('🌿');
+  await page.getByRole('button', { name: 'Usar este emoji', exact: true }).click();
   await page.getByRole('radio', { name: 'Celeste', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Celeste', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
