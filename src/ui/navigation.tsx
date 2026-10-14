@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
-import { runOnJS, type SharedValue, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useMotionDisabled } from './motion';
+import Animated, { runOnJS, type SharedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useMotionDisabled, useTabAppearance } from './motion';
 
 export const TAB_ORDER = ['home', 'history', 'stats', 'settings'] as const;
 const ActiveTabContext = createContext(true);
@@ -39,11 +39,12 @@ export function ActiveTabModal({ children }: { children: React.ReactNode }) {
 /** Layout all four native screens once; only the selected screen can receive input
  * or accessibility focus. Web keeps its ordinary display/scroll behaviour. */
 export function TabPanel({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const appearance = useTabAppearance(active);
   return <ActiveTabContext.Provider value={active}><View collapsable={false} pointerEvents={active ? 'auto' : 'none'}
     accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
     aria-hidden={!active} style={[{ position: 'absolute', inset: 0 },
       Platform.OS === 'web' ? { display: active ? 'flex' : 'none' } : { opacity: active ? 1 : 0, zIndex: active ? 1 : 0 }]}>
-    {children}
+    <Animated.View testID="tab-content-motion" style={[{ flex: 1 }, appearance]}>{children}</Animated.View>
   </View></ActiveTabContext.Provider>;
 }
 
