@@ -287,11 +287,15 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
             string_value(xml_attribute(child, "name")) == custom_permission
             and int_value(xml_attribute(child, "protectionLevel")) == 2
             for child in matching_children(manifest, "permission"))
-        allowed = {custom_permission} if declared_signature else set()
+        # expo-audio uses Android's normal audio-settings permission for local playback.
+        # Network, recording, vibration, storage and all other platform permissions remain forbidden.
+        allowed = {"android.permission.MODIFY_AUDIO_SETTINGS"}
+        if declared_signature:
+            allowed.add(custom_permission)
         unexpected = sorted(set(requested) - allowed)
         report["permissions"] = requested
         check("permissions.minimum", not unexpected, {"unexpected": unexpected, "requested": requested,
-              "policy": "No platform permissions; only the package's declared signature receiver permission is allowed"})
+              "policy": "Only MODIFY_AUDIO_SETTINGS for local playback and the package's declared signature receiver permission are allowed"})
 
         for attribute, resource_name in (("fullBackupContent", "dailoop_backup_rules"),
                                          ("dataExtractionRules", "dailoop_data_extraction_rules")):
@@ -365,6 +369,16 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
         for font_name, digest in EXPECTED_FONTS.items():
             matches = [item["path"] for item in report["fonts"] if item["sha256"] == digest]
             check("font." + font_name, bool(matches), {"expectedSha256": digest, "packagedPaths": matches})
+        report["audio"] = []
+        for entry in entries:
+            if entry.filename.lower().endswith(".wav"):
+                with archive.open(entry) as stream:
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                report["audio"].append({"path": entry.filename, "bytes": entry.file_size, "sha256": digest})
+        for sound_name in ("glass-tap.wav", "glass-tick.wav"):
+            digest = digest_file(project / "assets" / "audio" / sound_name)
+            matches = [item["path"] for item in report["audio"] if item["sha256"] == digest]
+            check("audio." + sound_name, bool(matches), {"expectedSha256": digest, "packagedPaths": matches})
         bundles = [entry for entry in entries if entry.filename == "assets/index.android.bundle"]
         check("bundle.present", len(bundles) == 1 and bundles[0].file_size > 0,
               [{"path": entry.filename, "bytes": entry.file_size} for entry in bundles])

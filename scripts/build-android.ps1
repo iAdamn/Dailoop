@@ -60,6 +60,8 @@ try {
   try {
     & node scripts/patch-android-blur.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Native palette patch failed.' }
+    & node scripts/patch-android-audio.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Foreground-only audio patch failed.' }
     $prebuildArgs = @('expo', 'prebuild', '--platform', 'android', '--no-install')
     if ($Incremental) { $prebuildArgs += '--no-clean' }
     & npx.cmd @prebuildArgs

@@ -19,7 +19,7 @@
     "export:web": "expo export --platform web",
     "check:expo": "expo install --check",
     "lint": "eslint src app tests",
-    "postinstall": "node scripts/patch-android-blur.mjs"
+    "postinstall": "node scripts/patch-android-blur.mjs && node scripts/patch-android-audio.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "1.4.1",
