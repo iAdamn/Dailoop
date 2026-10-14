@@ -323,7 +323,9 @@ test('backup real: cancelar conserva cambios; restaurar reemplaza; repetir no du
   const corruptPath = testInfo.outputPath('backup-corrupto.json');
   await writeFile(corruptPath, JSON.stringify(bad), 'utf8');
   await chooseBackup(page, corruptPath);
-  await expect(page.getByText(/No se importó ningún dato.*checksum incorrecto/)).toBeVisible();
+  const visibleError = page.getByText(/No se importó ningún dato.*checksum incorrecto/).filter({ visible: true });
+  await expect(visibleError).toHaveCount(1);
+  await expect(visibleError).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirmar reemplazo y restaurar', exact: true })).toHaveCount(0);
   const unaffected = await exportBackup(page);
   expect(unaffected.content.payload).toEqual(initial.content.payload);

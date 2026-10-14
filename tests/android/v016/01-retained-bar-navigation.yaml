@@ -1,0 +1,48 @@
+appId: local.dailoop.personal
+name: v016 retained filters and gesture only in the bottom bar
+# Preconditions: exclusive 5590; synthetic 10-activity fixture; normal fontScale;
+# portrait 1344x2992; keyboard closed. Never run on a personal dataset/device.
+---
+- launchApp
+- tapOn: "Inicio"
+- swipe:
+    start: "15%, 92%"
+    end: "62%, 92%"
+    duration: 400
+- assertVisible: "Tu ritmo"
+- tapOn: "Mes"
+- swipe:
+    start: "62%, 92%"
+    end: "38%, 92%"
+    duration: 400
+- assertVisible: "Tu historia"
+- tapOn: "Buscar una actividad"
+- inputText: "QA 002"
+- hideKeyboard
+- swipe:
+    start: "38%, 92%"
+    end: "62%, 92%"
+    duration: 400
+- assertVisible: "Tu ritmo"
+- assertVisible: "✓ Mes"
+- swipe:
+    start: "62%, 92%"
+    end: "38%, 92%"
+    duration: 400
+- assertVisible: "QA 002"
+- swipe:
+    start: "75%, 45%"
+    end: "25%, 45%"
+    duration: 400
+- assertVisible: "Tu historia"
+- swipe:
+    start: "38%, 92%"
+    end: "85%, 92%"
+    duration: 400
+- assertVisible: "Tus ajustes"
+- swipe:
+    start: "85%, 92%"
+    end: "15%, 92%"
+    duration: 400
+- assertVisible: "¿Qué quieres registrar?"
+- takeScreenshot: 01-v016-retained-bar-navigation

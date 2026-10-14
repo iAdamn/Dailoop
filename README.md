@@ -8,6 +8,8 @@ Código abierto de **Dailoop**, una app personal de registros cotidianos, sin cu
 
 El desarrollo local **0.1.5** incorpora teclado visible, distribución de una a cuatro columnas, movimiento y optimización de dibujo/peso. Su [guía y estado de entrega](docs/RELEASE-0.1.5.md) y [verificación independiente](docs/QA-0.1.5.md) identifican la candidata probada y sus límites. Los artefactos locales están en `output/releases/v0.1.5/`; esto no publica otra release ni sustituye el APK del enlace anterior.
 
+El parche local **0.1.6** mantiene las cuatro pantallas preparadas y permite cambiar de pestaña arrastrando la barra inferior. El [contrato y estado de navegación](docs/NAVIGATION-0.1.6.md) y sus [pruebas](docs/NAVIGATION-0.1.6-QA.md) distinguen el funcionamiento comprobado de la fluidez pendiente de confirmar en el teléfono.
+
 ## Probar la preview
 
 La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en **http://localhost:8793**. Son orígenes distintos y mantienen bases distintas. Usar Edge o Chromium con Web Locks y aislamiento COOP/COEP.

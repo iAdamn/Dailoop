@@ -1,6 +1,10 @@
 # Dailoop execution contract
 
-## Active handoff: Dailoop 0.1.5
+## Active handoff: Dailoop 0.1.6 navigation patch
+
+The user reported remaining mobile tab delay after testing 0.1.5 and requested retained screens plus dragging **only the bottom bar**. Read `docs/NAVIGATION-0.1.6.md` and `docs/NAVIGATION-0.1.6-QA.md` for the current implementation/evidence. Other visual changes await the user's next item. Keep SQLite/audit/backup behavior, existing colors/fonts and signing identity. Version 0.1.6 / Android versionCode 4; local APK and preview only. The previous authorized 0.1.5 source push is already complete; no new push/release is implied. Never operate externally controlled emulator-5580; QA exclusively operates this project's emulator-5590. Preserve versioned 0.1.5 evidence and APKs.
+
+## Previous handoff: Dailoop 0.1.5
 
 Execution was activated by “Ahora tú ejecuta tu parte. Let's go, let's work.” Read `docs/PROGRESS-0.1.5.md` for the current outcome and remaining acceptance criteria. The pre-execution wording below is historical context, not an instruction to restart planning. New source commits and APKs remain local for this iteration; no new GitHub release or push is implied.
 

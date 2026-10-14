@@ -9,6 +9,10 @@ const tab = async (page: Page, name: string) => page.getByRole('tab', { name, ex
 const publicName = 'Actividad QA 002 con nombre largo y emoji repetido';
 const prefKey = 'dailoop.presentation.v1';
 const runtimeErrors = new WeakMap<Page, string[]>();
+function expectPreservedById<T extends { id: string }>(before: readonly T[], after: readonly T[]) {
+  const current = new Map(after.map(row => [row.id, row]));
+  expect(before.map(row => current.get(row.id))).toEqual(before);
+}
 
 test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
@@ -74,10 +78,19 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
   await expect(page.getByText(`✓ Registrado: ${publicName}`, { exact: true })).toBeVisible();
   const recorded = await backup(page);
   expect(recorded.parsed.state.entries).toHaveLength(101);
-  expect(recorded.parsed.state.entries.at(-1)!.activityId).toBe(original.activities[1].id);
+  expect(recorded.parsed.state.entryRevisions).toHaveLength(101);
+  expect(recorded.parsed.state.operations).toHaveLength(111);
+  const existingIds = new Set(original.entries.map(entry => entry.id));
+  const additions = recorded.parsed.state.entries.filter(entry => !existingIds.has(entry.id));
+  expect(additions).toHaveLength(1);
+  expect(additions[0].activityId).toBe(original.activities[1].id);
+  expectPreservedById(original.entries, recorded.parsed.state.entries);
+  expectPreservedById(original.entryRevisions, recorded.parsed.state.entryRevisions);
+  expectPreservedById(original.operations, recorded.parsed.state.operations);
   expect(recorded.parsed.state.activities).toEqual(original.activities);
+  expect(recorded.parsed.state.activityRevisions).toEqual(original.activityRevisions);
   expect(recorded.parsed.state.settings).toEqual(original.settings);
-  expect(recorded.envelope.appVersion).toBe('0.1.5');
+  expect(recorded.envelope.appVersion).toBe('0.1.6');
   expect(recorded.parsed.state.settings).not.toHaveProperty('activityColumns');
   await page.reload();
   await expect(page.getByRole('checkbox', { name: '4 columnas', exact: true })).toBeChecked();
@@ -105,7 +118,9 @@ test('invalid local preferences recover and quota errors retain the prior select
     };
   }, prefKey);
   await page.getByRole('checkbox', { name: '4 columnas', exact: true }).click();
-  await expect(page.getByText(/No se guardó la distribución/)).toBeVisible();
+  const visibleError = page.getByText(/No se guardó la distribución/).filter({ visible: true });
+  await expect(visibleError).toHaveCount(1);
+  await expect(visibleError).toBeVisible();
   await expect(page.getByRole('checkbox', { name: '1 columna', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: '4 columnas', exact: true })).not.toBeChecked();
 });
