@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, BackHandler, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, BackHandler, FlatList, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { randomUUID } from 'expo-crypto';
 import { addCalendarDays, effectiveEntries, elapsedSince, formatDateTime, lastOccurredAt, localDate, periodFor, selectActivities, startOfLocalDay } from '../domain';
@@ -16,6 +16,8 @@ import { compactLastTime, effectiveActivityColumns } from './layout';
 import type { ActivityColumns } from '../infrastructure/preferences';
 import { DensityTransition, MotionPressable, MovingTabIndicator } from './motion';
 import { APP_VERSION } from '../version';
+import { ActiveTabModal, SwipeTabBar, TAB_ORDER, TabButton, TabPanel, useTabPosition } from './navigation';
+import { retainedPeriod } from './retainedPeriod';
 
 export type Tab = 'home' | 'history' | 'stats' | 'settings';
 export interface UIRoute { tab: Tab; activityId?: string; report?: boolean }
@@ -54,6 +56,8 @@ export default function DailoopUI(props: DailoopUIProps) {
   const [tabSize, setTabSize] = useState({ width: 0, height: 0 });
   const [localRoute, setLocalRoute] = useState<UIRoute>({ tab: 'home' });
   const route = props.route || localRoute;
+  const tabIndex = TAB_ORDER.indexOf(route.tab);
+  const tabPosition = useTabPosition(tabIndex);
   const [modal, setModal] = useState<ModalState>(null);
   const [confirm, setConfirm] = useState<Confirmation | null>(null);
   const [confirmationError, setConfirmationError] = useState('');
@@ -69,7 +73,18 @@ export default function DailoopUI(props: DailoopUIProps) {
   const allActivities = useMemo(() => selectActivities(state, { includeArchived: true }), [state]);
   const allEntries = useMemo(() => effectiveEntries(state, { includeVoided: true }), [state]);
   const onNavigate = props.onNavigate;
-  const navigate = useCallback((next: UIRoute) => { setLocalRoute(next); onNavigate?.(next); setModal(null); scroll.current?.scrollTo({ y: 0, animated: false }); }, [onNavigate, setModal]);
+  const navigate = useCallback((next: UIRoute) => { Keyboard.dismiss(); setLocalRoute(next); onNavigate?.(next); setModal(null); if (next.report || next.activityId) scroll.current?.scrollTo({ y: 0, animated: false }); }, [onNavigate]);
+  const openActivity = useCallback((activityId: string) => navigate({ tab: 'home', activityId }), [navigate]);
+  const newActivity = useCallback(() => setModal({ kind: 'activity' }), []);
+  const openMenu = useCallback((activityId: string) => setModal({ kind: 'activity-menu', activityId }), []);
+  const openEntry = useCallback((entryId: string) => setModal({ kind: 'entry', entryId }), []);
+  const statsReport = useCallback(() => navigate({ tab: 'stats', report: true }), [navigate]);
+  const settingsReport = useCallback(() => navigate({ tab: 'settings', report: true }), [navigate]);
+  const selectTab = useCallback((index: number) => {
+    const tab = TAB_ORDER[index];
+    if (!tab || modal || confirm || props.busy) return;
+    if (tab !== route.tab || route.activityId || route.report) navigate({ tab });
+  }, [modal, confirm, props.busy, route.tab, route.activityId, route.report, navigate]);
 
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -81,25 +96,26 @@ export default function DailoopUI(props: DailoopUIProps) {
     return () => listener.remove();
   }, [route, modal, confirm, navigate]);
 
-  async function perform(command: Command, key: string, onDone?: (result: CommandResult) => void): Promise<CommandResult> {
-    if (props.readOnly) { const e = new Error(props.readOnlyReason || 'Esta pestaña está en modo lectura. Usa la pestaña que tiene abiertos estos datos para guardar cambios.'); setLocalError(e.message); throw e; }
+  const { readOnly, readOnlyReason, onCommand, onClearError } = props;
+  const perform = useCallback(async (command: Command, key: string, onDone?: (result: CommandResult) => void): Promise<CommandResult> => {
+    if (readOnly) { const e = new Error(readOnlyReason || 'Esta pestaña está en modo lectura. Usa la pestaña que tiene abiertos estos datos para guardar cambios.'); setLocalError(e.message); throw e; }
     const signature = JSON.stringify(command);
     let attempt = attempts.current.get(key);
     if (!attempt || attempt.signature !== signature) {
       attempt = { signature, command, operationId: randomUUID() };
       attempts.current.set(key, attempt);
     }
-    setPending(list => [...list, key]); setLocalError(''); props.onClearError();
+    setPending(list => [...list, key]); setLocalError(''); onClearError();
     try {
-      const result = await props.onCommand(command, attempt.operationId);
+      const result = await onCommand(command, attempt.operationId);
       attempts.current.delete(key); setRetry(null); onDone?.(result);
       return result;
     } catch (e) {
       setLocalError(errText(e)); setRetry({ command, key, onDone }); throw e;
     } finally { setPending(list => list.filter(item => item !== key)); }
-  }
-  const submit: SubmitCommand = (command, key) => perform(command, key, () => { setNotice('Cambios guardados'); setUndo(null); });
-  const quickRecord = (activity: CurrentActivity) => {
+  }, [readOnly, readOnlyReason, onCommand, onClearError]);
+  const submit: SubmitCommand = useCallback((command, key) => perform(command, key, () => { setNotice('Cambios guardados'); setUndo(null); }), [perform]);
+  const quickRecord = useCallback((activity: CurrentActivity) => {
     const key = `record-${activity.id}`;
     if (pending.includes(key)) return;
     const previousAttempt = attempts.current.get(key);
@@ -110,7 +126,7 @@ export default function DailoopUI(props: DailoopUIProps) {
       if (result.result.entryId) setUndo({ entryId: result.result.entryId, name: activity.name });
       AccessibilityInfo.announceForAccessibility(`Registrado: ${activity.name}, ${displayTime(command.type === 'createEntry' ? command.occurredAtMs ?? capturedNow : capturedNow, state)}`);
     }).catch(() => undefined);
-  };
+  }, [pending, perform, state]);
   const ask = (confirmation: Confirmation) => { setConfirmationError(''); setModal(null); setConfirm(confirmation); };
   const archive = (activity: CurrentActivity) => ask({
     title: activity.isArchived ? 'Restaurar actividad' : 'Archivar actividad',
@@ -122,26 +138,29 @@ export default function DailoopUI(props: DailoopUIProps) {
   const modalActivity = modal && 'activityId' in modal ? allActivities.find(a => a.id === modal.activityId) : undefined;
   const modalEntry = modal && 'entryId' in modal ? allEntries.find(e => e.id === modal.entryId) : undefined;
   const error = localError || props.error;
-  const banners = <>{props.readOnly && <Panel><Label strong>Vista de sólo lectura</Label><Label small>{props.readOnlyReason || 'Otra pestaña tiene abiertos estos datos para guardar cambios. Puedes consultar tu historia aquí; realiza los cambios desde la otra pestaña.'}</Label></Panel>}
-      {!!error && <Panel><Label strong>! {error}</Label>{retry && <Button secondary disabled={!!props.readOnly || pending.includes(retry.key)} onPress={() => perform(retry.command, retry.key, retry.onDone).catch(() => undefined)}>Reintentar la misma operación</Button>}<Button subtle compact onPress={() => { setLocalError(''); props.onClearError(); }}>Cerrar mensaje</Button></Panel>}</>;
-  const footer = <View style={styles.footerNote}><Image source={require('../../assets/dailoop-glyph.png')} style={styles.footerGlyph} resizeMode="contain" accessible={false} /><Label small style={s.center}>Un registro a la vez. Tu historia, contigo.</Label></View>;
+  const banners = useMemo(() => <>{readOnly && <Panel><Label strong>Vista de sólo lectura</Label><Label small>{readOnlyReason || 'Otra pestaña tiene abiertos estos datos para guardar cambios. Puedes consultar tu historia aquí; realiza los cambios desde la otra pestaña.'}</Label></Panel>}
+      {!!error && <Panel><Label strong>! {error}</Label>{retry && <Button secondary disabled={!!readOnly || pending.includes(retry.key)} onPress={() => perform(retry.command, retry.key, retry.onDone).catch(() => undefined)}>Reintentar la misma operación</Button>}<Button subtle compact onPress={() => { setLocalError(''); onClearError(); }}>Cerrar mensaje</Button></Panel>}</>, [readOnly, readOnlyReason, error, retry, pending, perform, onClearError]);
+  const footer = useMemo(() => <View style={styles.footerNote}><Image source={require('../../assets/dailoop-glyph.png')} style={styles.footerGlyph} resizeMode="contain" accessible={false} /><Label small style={s.center}>Un registro a la vez. Tu historia, contigo.</Label></View>, []);
+  const subpage = !!(route.report || detailActivity);
 
   return <ColorContext.Provider value={colors}><GlassScene><SafeAreaView style={[styles.outer, { backgroundColor: colors.background }]}>{Platform.OS !== 'web' && <StatusBar barStyle={colors.dark ? 'light-content' : 'dark-content'} animated={false} />}<GlassBackdrop><AmbientBackground dark={colors.dark} /></GlassBackdrop><View style={styles.shell}>
     {Platform.OS === 'web' && <View style={styles.preview}><GlassLayer radius={0} dark={colors.dark} strength="control" /><Text style={[styles.previewText, { color: colors.text }]}>VISTA PREVIA WEB{props.mode === 'demo' ? ' · DATOS DE DEMOSTRACIÓN' : ''}</Text></View>}
     <View style={styles.brandHeader}><View style={s.row}><Image source={require('../../assets/dailoop-app-icon.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="Dailoop" /><View><Text style={[styles.wordmark, { color: colors.text }, titleReflection(colors.dark)]}>Dailoop</Text><Text style={[styles.brandCaption, { color: colors.text }]}>Tu día, a tu manera.</Text></View></View><View style={[styles.localPill, { borderColor: 'transparent', backgroundColor: 'transparent' }]}><GlassLayer radius={18} dark={colors.dark} strength="control" /><View style={styles.localDot} /><Text style={[styles.localText, { color: colors.text }]}>En tu dispositivo</Text></View></View>
-    {!route.report && !detailActivity && route.tab === 'home'
-      ? <Home state={state} nowMs={nowMs} pending={pending} readOnly={props.readOnly} preferredColumns={props.activityColumns} header={banners} footer={footer} onNew={() => setModal({ kind: 'activity' })} onRecord={quickRecord} onActivity={activityId => navigate({ tab: 'home', activityId })} onMenu={activityId => setModal({ kind: 'activity-menu', activityId })} />
-      : <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'android' ? 'height' : undefined}><KeyboardScrollView ref={scroll} style={s.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={[s.flex, { overflow: 'hidden' }]}>
+      <TabPanel active={!subpage && route.tab === 'home'}><HomeTab state={state} nowMs={nowMs} pending={pending} readOnly={readOnly} preferredColumns={props.activityColumns} header={banners} footer={footer} onNew={newActivity} onRecord={quickRecord} onActivity={openActivity} onMenu={openMenu} /></TabPanel>
+      <TabPanel active={!subpage && route.tab === 'history'}><HistoryTab state={state} nowMs={nowMs} onEntry={openEntry} header={banners} footer={footer} /></TabPanel>
+      <TabPanel active={!subpage && route.tab === 'stats'}><StatsTab state={state} nowMs={nowMs} openReport={statsReport} header={banners} footer={footer} /></TabPanel>
+      <TabPanel active={!subpage && route.tab === 'settings'}><SettingsTab state={state} nowMs={nowMs} mode={props.mode} storageLabel={props.storageLabel} busy={props.busy} readOnly={readOnly} activityColumns={props.activityColumns} onActivityColumns={props.onActivityColumns} presentationBusy={props.presentationBusy} onInspectBackup={props.onInspectBackup} onRestoreBackup={props.onRestoreBackup} onExportBackup={props.onExportBackup} onMode={props.onMode} onResetDemo={props.onResetDemo} submit={submit} openReport={settingsReport} onNotice={setNotice} header={banners} footer={footer} /></TabPanel>
+      {subpage && <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'android' ? 'height' : undefined}><KeyboardScrollView ref={scroll} style={s.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {banners}
       {route.report ? <ReportScreen state={state} nowMs={nowMs} onBack={() => navigate({ tab: route.tab })} onStageLayout={resetReportScroll} onReport={props.onReport} onSaveReport={props.onSaveReport} onCopyReport={props.onCopyReport} onShareReport={props.onShareReport} />
         : detailActivity ? <ActivityDetail activity={detailActivity} state={state} nowMs={nowMs} pending={pending.includes(`record-${detailActivity.id}`)} readOnly={props.readOnly} onBack={() => navigate({ tab: 'home' })} onRecord={() => quickRecord(detailActivity)} onRetro={() => setModal({ kind: 'entry-form', activityId: detailActivity.id })} onEdit={() => setModal({ kind: 'activity', activityId: detailActivity.id })} onArchive={() => archive(detailActivity)} onEntry={entryId => setModal({ kind: 'entry', entryId })} />
-        : route.tab === 'history' ? <History state={state} nowMs={nowMs} onEntry={entryId => setModal({ kind: 'entry', entryId })} />
-        : route.tab === 'stats' ? <StatsScreen state={state} nowMs={nowMs} openReport={() => navigate({ tab: 'stats', report: true })} />
-        : <Settings key={state.meta.databaseId} {...props} submit={submit} openReport={() => navigate({ tab: 'settings', report: true })} onNotice={setNotice} />}
+        : null}
       {footer}
     </KeyboardScrollView></KeyboardAvoidingView>}
+    </View>
     {!!notice && <View accessibilityLiveRegion="polite" style={[styles.notice, { borderColor: 'transparent', backgroundColor: 'transparent', marginHorizontal: 16, marginBottom: 8 }]}><GlassLayer radius={20} dark={colors.dark} strength="strong" /><Label small strong style={s.flex}>✓ {notice}</Label>{undo && <Button compact subtle label={`Deshacer registro de ${undo.name}`} busy={pending.includes(`undo-${undo.entryId}`)} disabled={props.readOnly} onPress={() => perform({ type: 'voidEntry', entryId: undo.entryId, reason: 'Deshacer registro rápido' }, `undo-${undo.entryId}`, () => { setNotice('Registro anulado. Su historial se conserva.'); setUndo(null); }).catch(() => undefined)}>Deshacer</Button>}{!undo && <Pressable accessibilityRole="button" accessibilityLabel="Cerrar aviso" style={({ focused }: { pressed: boolean; focused?: boolean }) => [styles.dismiss, webFocusRing(focused, colors.dark ? palette.lavender : palette.violet)]} onPress={() => setNotice('')}><Text style={{ color: colors.text, fontSize: 24, fontFamily: typefaces.body }}>×</Text></Pressable>}</View>}
-    <View accessibilityRole="tablist" onLayout={event => { const { width, height } = event.nativeEvent.layout; setTabSize(previous => previous.width === width && previous.height === height ? previous : { width, height }); }} style={[styles.tabBar, { borderColor: 'transparent', backgroundColor: 'transparent', boxShadow: glassShadow(colors.dark) }]}><GlassLayer radius={28} dark={colors.dark} strength="strong" /><MovingTabIndicator index={(Object.keys(labels) as Tab[]).indexOf(route.tab)} width={tabSize.width} height={tabSize.height} dark={colors.dark} />{(Object.keys(labels) as Tab[]).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={labels[tab]} accessibilityState={{ selected: route.tab === tab }} aria-selected={route.tab === tab} onPress={() => navigate({ tab })} {...(Platform.OS === 'web' ? { onKeyDown: (event: { key: string; repeat?: boolean; preventDefault(): void }) => { if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); if (!event.repeat) navigate({ tab }); } } } : {})} style={({ focused }: { pressed: boolean; focused?: boolean }) => [styles.tab, { borderColor: focused ? palette.violet : 'transparent', backgroundColor: 'transparent' }, webFocusRing(focused, colors.dark ? palette.lavender : palette.violet)]}><View style={styles.tabIconWrap}><Text style={[styles.tabIcon, { color: colors.text }]}>{marks[tab]}</Text></View><Text style={[styles.tabLabel, { color: colors.text }, route.tab === tab && { fontFamily: typefaces.bold }]}>{labels[tab]}</Text></Pressable>)}</View>
+    <SwipeTabBar index={tabIndex} width={tabSize.width} enabled={!modal && !confirm && !props.busy} position={tabPosition} onSelect={selectTab} accessibilityRole="tablist" accessibilityLabel="Navegación principal" onLayout={event => { const { width, height } = event.nativeEvent.layout; setTabSize(previous => previous.width === width && previous.height === height ? previous : { width, height }); }} style={[styles.tabBar, { borderColor: 'transparent', backgroundColor: 'transparent', boxShadow: glassShadow(colors.dark) }]}><GlassLayer radius={28} dark={colors.dark} strength="strong" /><MovingTabIndicator index={tabIndex} width={tabSize.width} height={tabSize.height} dark={colors.dark} position={tabPosition} />{TAB_ORDER.map((tab, index) => <TabButton key={tab} accessibilityRole="tab" accessibilityLabel={labels[tab]} accessibilityState={{ selected: route.tab === tab }} aria-selected={route.tab === tab} onSelect={() => selectTab(index)} style={({ focused }: { pressed: boolean; focused?: boolean }) => [styles.tab, { borderColor: focused ? palette.violet : 'transparent', backgroundColor: 'transparent' }, webFocusRing(focused, colors.dark ? palette.lavender : palette.violet)]}><View style={styles.tabIconWrap}><Text style={[styles.tabIcon, { color: colors.text }]}>{marks[tab]}</Text></View><Text style={[styles.tabLabel, { color: colors.text }, route.tab === tab && { fontFamily: typefaces.bold }]}>{labels[tab]}</Text></TabButton>)}</SwipeTabBar>
   </View></SafeAreaView>
     {modal?.kind === 'activity' && <ActivityForm activity={modalActivity} activities={allActivities} submit={submit} onClose={() => setModal(null)} />}
     {modal?.kind === 'entry-form' && modalActivity && <EntryForm activity={modalActivity} entry={modalEntry} nowMs={nowMs} zone={state.settings.zone} submit={submit} onClose={() => setModal(null)} />}
@@ -150,6 +169,21 @@ export default function DailoopUI(props: DailoopUIProps) {
     {confirm && <ModalFrame canClose={!confirmBusy} title={confirm.title} onClose={() => !confirmBusy && setConfirm(null)}><Label>{confirm.text}</Label>{!!confirmationError && <Label strong>! {confirmationError}</Label>}<Button busy={confirmBusy} onPress={async () => { setConfirmBusy(true); try { await confirm.action(); setConfirm(null); } catch (e) { setConfirmationError(errText(e)); } finally { setConfirmBusy(false); } }}>{confirm.label}</Button><Button secondary disabled={confirmBusy} onPress={() => setConfirm(null)}>Cancelar</Button></ModalFrame>}
   </GlassScene></ColorContext.Provider>;
 }
+
+type TabChrome = { header: React.ReactNode; footer: React.ReactNode };
+function TabScroll({ header, footer, children }: TabChrome & { children: React.ReactNode }) {
+  return <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'android' ? 'height' : undefined}><KeyboardScrollView style={s.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{header}{children}{footer}</KeyboardScrollView></KeyboardAvoidingView>;
+}
+const HomeTab = memo(Home);
+const HistoryTab = memo(function HistoryTab({ header, footer, ...props }: TabChrome & React.ComponentProps<typeof History>) {
+  return <TabScroll header={header} footer={footer}><History {...props} /></TabScroll>;
+});
+const StatsTab = memo(function StatsTab({ header, footer, ...props }: TabChrome & React.ComponentProps<typeof StatsScreen>) {
+  return <TabScroll header={header} footer={footer}><StatsScreen {...props} /></TabScroll>;
+});
+const SettingsTab = memo(function SettingsTab({ header, footer, ...props }: TabChrome & SettingsProps) {
+  return <TabScroll header={header} footer={footer}><Settings {...props} /></TabScroll>;
+});
 
 function displayTime(ms: number, state: DomainState) {
   return new Intl.DateTimeFormat('es-CO', { timeZone: state.settings.zone, hour: '2-digit', minute: '2-digit', hour12: state.settings.hourFormat === '12h' }).format(ms);
@@ -245,11 +279,14 @@ function History({ state, nowMs, onEntry }: { state: DomainState; nowMs: number;
   const [allTime, setAllTime] = useState(true);
   const [limit, setLimit] = useState(40);
   const [period, setPeriod] = useState(() => periodFor('month', localDate(nowMs, state.settings.zone), state.settings.zone, nowMs));
-  const activities = selectActivities(state, { includeArchived: true });
-  const entries = effectiveEntries(state, { includeVoided, activityIds: selected.length ? selected : undefined, ...(allTime ? {} : { fromMs: period.startMs, toMs: period.endMs }) }).filter(e => (includeArchived || !e.activity.isArchived) && e.activity.name.toLocaleLowerCase().includes(search.toLocaleLowerCase().trim())).reverse();
+  const activities = useMemo(() => selectActivities(state, { includeArchived: true }), [state]);
+  const today = localDate(nowMs, state.settings.zone);
+  const dayNow = useMemo(() => startOfLocalDay(today, state.settings.zone), [today, state.settings.zone]);
+  const normalized = useMemo(() => retainedPeriod(period, state.settings.zone, dayNow), [period, state.settings.zone, dayNow]);
+  const entries = useMemo(() => effectiveEntries(state, { includeVoided, activityIds: selected.length ? selected : undefined, ...(allTime ? {} : { fromMs: normalized.startMs, toMs: normalized.endMs }) }).filter(e => (includeArchived || !e.activity.isArchived) && e.activity.name.toLocaleLowerCase().includes(search.toLocaleLowerCase().trim())).reverse(), [state, includeVoided, selected, allTime, normalized.startMs, normalized.endMs, includeArchived, search]);
   return <View style={s.stack}><Heading subtitle="Vuelve a cualquier momento, sin perder el hilo.">Tu historia</Heading><Field label="Buscar una actividad" placeholder="Nombre de la actividad" value={search} onChangeText={v => { setSearch(v); setLimit(40); }} /><Button secondary compact onPress={() => setFilters(!filters)}>{filters ? 'Cerrar filtros' : 'Filtrar historial'}</Button>
-    {filters && <Panel><Toggle label="Todo el historial" value={allTime} onChange={setAllTime} />{!allTime && <PeriodControls period={period} nowMs={nowMs} onChange={p => { setPeriod(p); setLimit(40); }} />}<Toggle label="Incluir actividades archivadas" value={includeArchived} onChange={setIncludeArchived} /><Toggle label="Mostrar registros anulados" value={includeVoided} onChange={setIncludeVoided} /><Label strong>Actividades</Label><View style={s.wrap}><Chip selected={!selected.length} onPress={() => setSelected([])}>Todas</Chip>{activities.filter(a => includeArchived || !a.isArchived).map(a => <Chip key={a.id} selected={selected.includes(a.id)} onPress={() => setSelected(selected.includes(a.id) ? selected.filter(id => id !== a.id) : [...selected, a.id])}>{a.emoji} {a.name}</Chip>)}</View><Button subtle compact onPress={() => { setSelected([]); setAllTime(true); setSearch(''); setIncludeArchived(false); setIncludeVoided(false); }}>Restablecer filtros</Button></Panel>}
-    <Label small>{quantity(entries.length, 'registro', 'registros')} · {allTime ? 'Todo el historial' : `${dateLabel(period.from)} — ${dateLabel(period.to)}`} · {state.settings.zone}</Label>
+    {filters && <Panel><Toggle label="Todo el historial" value={allTime} onChange={setAllTime} />{!allTime && <PeriodControls period={normalized} nowMs={nowMs} onChange={p => { setPeriod(p); setLimit(40); }} />}<Toggle label="Incluir actividades archivadas" value={includeArchived} onChange={setIncludeArchived} /><Toggle label="Mostrar registros anulados" value={includeVoided} onChange={setIncludeVoided} /><Label strong>Actividades</Label><View style={s.wrap}><Chip selected={!selected.length} onPress={() => setSelected([])}>Todas</Chip>{activities.filter(a => includeArchived || !a.isArchived).map(a => <Chip key={a.id} selected={selected.includes(a.id)} onPress={() => setSelected(selected.includes(a.id) ? selected.filter(id => id !== a.id) : [...selected, a.id])}>{a.emoji} {a.name}</Chip>)}</View><Button subtle compact onPress={() => { setSelected([]); setAllTime(true); setSearch(''); setIncludeArchived(false); setIncludeVoided(false); }}>Restablecer filtros</Button></Panel>}
+    <Label small>{quantity(entries.length, 'registro', 'registros')} · {allTime ? 'Todo el historial' : `${dateLabel(normalized.from)} — ${dateLabel(normalized.to)}`} · {state.settings.zone}</Label>
     {!entries.length && <Empty title="Todavía no hay registros aquí" text="Prueba otro período o cambia los filtros. Cada registro que guardes tendrá su lugar en esta historia." />}
     <EntryList entries={entries.slice(0, limit)} state={state} onEntry={onEntry} />{entries.length > limit && <Button secondary onPress={() => setLimit(n => n + 40)}>Cargar más · {quantity(entries.length - limit, 'restante', 'restantes')}</Button>}
   </View>;
@@ -278,9 +315,16 @@ function EntryDetail({ entry, state, readOnly, onClose, onEdit, onToggle }: { en
   </ModalFrame>;
 }
 
-function Settings(props: DailoopUIProps & { submit: SubmitCommand; openReport(): void; onNotice(message: string): void }) {
+type SettingsProps = Pick<DailoopUIProps, 'state' | 'nowMs' | 'mode' | 'storageLabel' | 'busy' | 'readOnly' | 'activityColumns' | 'onActivityColumns' | 'presentationBusy' | 'onInspectBackup' | 'onRestoreBackup' | 'onExportBackup' | 'onMode' | 'onResetDemo'> & { submit: SubmitCommand; openReport(): void; onNotice(message: string): void };
+function Settings(props: SettingsProps) {
   const { state, submit } = props;
   const [zone, setZone] = useState(state.settings.zone);
+  const committedZone = useRef(state.settings.zone);
+  useEffect(() => {
+    const previous = committedZone.current;
+    committedZone.current = state.settings.zone;
+    setZone(draft => draft === previous || draft.trim() === state.settings.zone ? state.settings.zone : draft);
+  }, [state.settings.zone]);
   const [candidate, setCandidate] = useState<ParsedBackup | null>(null);
   const [backupConfirm, setBackupConfirm] = useState(false);
   const [demoResetConfirm, setDemoResetConfirm] = useState(false);
@@ -295,9 +339,9 @@ function Settings(props: DailoopUIProps & { submit: SubmitCommand; openReport():
     <Panel><Label strong>Tus datos</Label><Label>Tus datos se guardan en este dispositivo. No necesitas cuenta ni conexión.</Label><Button onPress={props.openReport}>Generar reporte</Button><Button secondary disabled={!!busy} onPress={() => setBackupConfirm(true)}>Crear backup completo</Button><Button subtle disabled={!!busy || props.readOnly} onPress={() => action('inspect', async () => { const parsed = await props.onInspectBackup(); if (parsed) setCandidate(parsed); })}>{busy === 'inspect' ? 'Validando archivo…' : 'Restaurar un backup'}</Button>{lastBackup && <Label small>Último archivo preparado en esta sesión: {lastBackup}. Esto no confirma que el archivo siga existiendo.</Label>}<Label small>Los reportes contienen lo que eliges. Un backup incluye todas las actividades, datos privados e historial de cambios.</Label></Panel>
     {Platform.OS === 'web' ? <Panel><Label strong>Acerca de esta preview</Label><Label small>{props.storageLabel}</Label><Label small>Datos locales de este navegador; no se sincronizan con Android. Borrar datos del sitio puede eliminarlos.</Label><Label small>Comparte pantallas y reglas con Android. Los diálogos de archivos, compartir, emojis y persistencia dependen del navegador. Las capacidades nativas siguen pendientes de probar en Android.</Label><Label small>{props.mode === 'demo' ? 'Datos ficticios en una base separada. No son tus registros personales.' : 'Base personal. No se crean datos de ejemplo automáticamente.'}</Label><Button secondary disabled={!!busy || props.busy || props.readOnly} onPress={() => action('mode', () => props.onMode(props.mode === 'demo' ? 'personal' : 'demo'))}>{props.mode === 'demo' ? 'Volver a mis datos' : 'Explorar con datos de demostración'}</Button>{props.mode === 'demo' && props.onResetDemo && <Button subtle disabled={!!busy || props.busy || props.readOnly} onPress={() => setDemoResetConfirm(true)}>Reiniciar demostración</Button>}<Label small>Dailoop · v{APP_VERSION} · Sin cuenta, anuncios ni analítica</Label></Panel> : <Panel><Label strong>Acerca de Dailoop</Label><Label small>v{APP_VERSION} · Sin cuenta, anuncios ni analítica</Label></Panel>}
     {!!error && <Label strong>! {error}</Label>}
-    {demoResetConfirm && <ModalFrame canClose={!busy} title="Reiniciar demostración" onClose={() => !busy && setDemoResetConfirm(false)}><Label>Se eliminarán los registros que añadiste a la demostración y se repondrán las actividades y registros ficticios iniciales. Esta acción afecta exclusivamente a la base de demostración.</Label><Label strong>Tus datos personales no cambiarán.</Label>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy || props.busy || props.readOnly} onPress={() => action('reset-demo', async () => { await props.onResetDemo?.(); setDemoResetConfirm(false); })}>{busy === 'reset-demo' ? 'Reiniciando demostración…' : 'Confirmar reinicio de demostración'}</Button><Button secondary disabled={!!busy || props.busy} onPress={() => setDemoResetConfirm(false)}>Cancelar</Button></ModalFrame>}
-    {backupConfirm && <ModalFrame canClose={!busy} title="Tu historia, en un archivo" onClose={() => !busy && setBackupConfirm(false)}><Label>El backup incluye todas tus actividades, registros privados, notas e historial de cambios.</Label><Panel><Label strong>{quantity(state.activities.length, 'actividad', 'actividades')} · {quantity(state.entries.length, 'registro', 'registros')}</Label><Label small>{quantity(state.entryRevisions.length, 'revisión', 'revisiones')} de registros</Label><Label small>El archivo es legible y no tiene cifrado con contraseña. Guárdalo en un lugar que controles.</Label></Panel>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy} onPress={() => action('export', async () => { const result = await props.onExportBackup(); setLastBackup(formatDateTime(props.nowMs, state.settings.zone)); setBackupConfirm(false); return result; })}>{busy === 'export' ? 'Preparando archivo…' : 'Guardar backup completo'}</Button><Button secondary disabled={!!busy} onPress={() => setBackupConfirm(false)}>Cancelar</Button></ModalFrame>}
-    {candidate && <ModalFrame canClose={!busy} title="Revisar restauración" onClose={() => !busy && setCandidate(null)}><Label>El archivo pasó la validación previa. Estos metadatos los declara el propio archivo:</Label><Panel><Label strong>{quantity(candidate.summary.activities, 'actividad', 'actividades')} · {quantity(candidate.summary.entries, 'registro', 'registros')}</Label><Label>{quantity(candidate.summary.entryRevisions, 'revisión', 'revisiones')}</Label><Label small>Exportado: {candidate.summary.exportedAt}</Label>{candidate.summary.firstOccurredAtMs != null && <Label small>Desde: {formatDateTime(candidate.summary.firstOccurredAtMs, candidate.state.settings.zone)}</Label>}{candidate.summary.lastOccurredAtMs != null && <Label small>Hasta: {formatDateTime(candidate.summary.lastOccurredAtMs, candidate.state.settings.zone)}</Label>}</Panel><Label strong>Reemplazará todos los datos de la base {props.mode === 'demo' ? 'de demostración' : 'personal'} actual. No se mezclarán las bases.</Label><Label>Se conservará una copia local de recuperación durante la restauración. Recomendamos guardar antes tu backup actual.</Label><Button secondary disabled={!!busy} onPress={() => action('before-restore', props.onExportBackup)}>Guardar mi backup actual</Button>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy} onPress={() => action('restore', async () => { await props.onRestoreBackup(candidate); setCandidate(null); props.onNotice('Backup restaurado y verificado.'); })}>{busy === 'restore' ? 'Restaurando y verificando…' : 'Confirmar reemplazo y restaurar'}</Button><Button subtle disabled={!!busy} onPress={() => setCandidate(null)}>Cancelar sin cambiar datos</Button></ModalFrame>}
+    {demoResetConfirm && <ActiveTabModal><ModalFrame canClose={!busy} title="Reiniciar demostración" onClose={() => !busy && setDemoResetConfirm(false)}><Label>Se eliminarán los registros que añadiste a la demostración y se repondrán las actividades y registros ficticios iniciales. Esta acción afecta exclusivamente a la base de demostración.</Label><Label strong>Tus datos personales no cambiarán.</Label>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy || props.busy || props.readOnly} onPress={() => action('reset-demo', async () => { await props.onResetDemo?.(); setDemoResetConfirm(false); })}>{busy === 'reset-demo' ? 'Reiniciando demostración…' : 'Confirmar reinicio de demostración'}</Button><Button secondary disabled={!!busy || props.busy} onPress={() => setDemoResetConfirm(false)}>Cancelar</Button></ModalFrame></ActiveTabModal>}
+    {backupConfirm && <ActiveTabModal><ModalFrame canClose={!busy} title="Tu historia, en un archivo" onClose={() => !busy && setBackupConfirm(false)}><Label>El backup incluye todas tus actividades, registros privados, notas e historial de cambios.</Label><Panel><Label strong>{quantity(state.activities.length, 'actividad', 'actividades')} · {quantity(state.entries.length, 'registro', 'registros')}</Label><Label small>{quantity(state.entryRevisions.length, 'revisión', 'revisiones')} de registros</Label><Label small>El archivo es legible y no tiene cifrado con contraseña. Guárdalo en un lugar que controles.</Label></Panel>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy} onPress={() => action('export', async () => { const result = await props.onExportBackup(); setLastBackup(formatDateTime(props.nowMs, state.settings.zone)); setBackupConfirm(false); return result; })}>{busy === 'export' ? 'Preparando archivo…' : 'Guardar backup completo'}</Button><Button secondary disabled={!!busy} onPress={() => setBackupConfirm(false)}>Cancelar</Button></ModalFrame></ActiveTabModal>}
+    {candidate && <ActiveTabModal><ModalFrame canClose={!busy} title="Revisar restauración" onClose={() => !busy && setCandidate(null)}><Label>El archivo pasó la validación previa. Estos metadatos los declara el propio archivo:</Label><Panel><Label strong>{quantity(candidate.summary.activities, 'actividad', 'actividades')} · {quantity(candidate.summary.entries, 'registro', 'registros')}</Label><Label>{quantity(candidate.summary.entryRevisions, 'revisión', 'revisiones')}</Label><Label small>Exportado: {candidate.summary.exportedAt}</Label>{candidate.summary.firstOccurredAtMs != null && <Label small>Desde: {formatDateTime(candidate.summary.firstOccurredAtMs, candidate.state.settings.zone)}</Label>}{candidate.summary.lastOccurredAtMs != null && <Label small>Hasta: {formatDateTime(candidate.summary.lastOccurredAtMs, candidate.state.settings.zone)}</Label>}</Panel><Label strong>Reemplazará todos los datos de la base {props.mode === 'demo' ? 'de demostración' : 'personal'} actual. No se mezclarán las bases.</Label><Label>Se conservará una copia local de recuperación durante la restauración. Recomendamos guardar antes tu backup actual.</Label><Button secondary disabled={!!busy} onPress={() => action('before-restore', props.onExportBackup)}>Guardar mi backup actual</Button>{!!error && <Label strong>! {error}</Label>}<Button disabled={!!busy} onPress={() => action('restore', async () => { await props.onRestoreBackup(candidate); setCandidate(null); props.onNotice('Backup restaurado y verificado.'); })}>{busy === 'restore' ? 'Restaurando y verificando…' : 'Confirmar reemplazo y restaurar'}</Button><Button subtle disabled={!!busy} onPress={() => setCandidate(null)}>Cancelar sin cambiar datos</Button></ModalFrame></ActiveTabModal>}
   </View>;
 }
 

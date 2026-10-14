@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, type PressableProps, type ViewStyle } from 'react-native';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { GlassLayer } from './material';
 import { palette } from './tokens';
 
@@ -30,17 +30,18 @@ export function MotionPressable({ wrapperStyle, ...props }: PressableProps & { w
   /></Animated.View>;
 }
 
-export function MovingTabIndicator({ index, width, height, dark }: { index: number; width: number; height: number; dark: boolean }) {
+export function MovingTabIndicator({ index, width, height, dark, position }: { index: number; width: number; height: number; dark: boolean; position?: SharedValue<number> }) {
   const reduced = useMotionDisabled();
   const x = useSharedValue(0);
   const ready = useRef(false);
   const cell = Math.max(0, (width - 12) / 4);
   useEffect(() => {
+    if (position) return;
     const next = index * cell;
     x.set(reduced || !ready.current ? next : withSpring(next, { damping: 24, stiffness: 260, mass: 0.8 }));
     if (width > 0) ready.current = true;
-  }, [index, cell, reduced, width, x]);
-  const animated = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
+  }, [index, cell, reduced, width, x, position]);
+  const animated = useAnimatedStyle(() => ({ transform: [{ translateX: position ? position.get() * cell : x.get() }] }));
   if (width === 0) return null;
   return <Animated.View pointerEvents="none" accessible={false} style={[{ position: 'absolute', left: 6, top: 8, width: cell - 2, height: Math.max(0, height - 18), borderRadius: 21 }, animated]}><GlassLayer radius={21} dark={dark} tint={palette.lavender} strength="control" /></Animated.View>;
 }

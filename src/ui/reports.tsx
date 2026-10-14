@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { addCalendarDays, computeStats, effectiveEntries, localDate, makePeriod, periodFor, selectActivities } from '../domain';
+import { addCalendarDays, computeStats, effectiveEntries, localDate, makePeriod, periodFor, selectActivities, startOfLocalDay } from '../domain';
 import type { DomainState, Period, ReportModel, ReportOptions } from '../domain/types';
 import { Button, Chip, Empty, Field, Heading, Label, Panel, s, Toggle, useColors, quantity, GlassLayer, titleReflection } from './components';
 import { alpha, palette } from './tokens';
 import { typefaces } from './typography';
 import { glassShadow } from './material';
+import { retainedPeriod } from './retainedPeriod';
 
 const errorText = (e: unknown) => e instanceof Error ? e.message : 'No se pudo completar la acción.';
 export function dateLabel(date: string) {
@@ -53,8 +54,10 @@ export function StatsScreen({ state, nowMs, openReport }: { state: DomainState; 
   const [selected, setSelected] = useState<string[] | null>(null);
   const [filters, setFilters] = useState(false);
   const activities = useMemo(() => selectActivities(state, { includeArchived: true }), [state]);
-  const normalized = useMemo(() => makePeriod({ ...period, zone: state.settings.zone, nowMs }), [period, state.settings.zone, nowMs]);
-  const stats = useMemo(() => computeStats(state, normalized, nowMs, selected || undefined), [state, normalized, nowMs, selected]);
+  const today = localDate(nowMs, state.settings.zone);
+  const dayNow = useMemo(() => startOfLocalDay(today, state.settings.zone), [today, state.settings.zone]);
+  const normalized = useMemo(() => retainedPeriod(period, state.settings.zone, dayNow), [period, state.settings.zone, dayNow]);
+  const stats = useMemo(() => computeStats(state, normalized, dayNow, selected || undefined), [state, normalized, dayNow, selected]);
   const entries = useMemo(() => effectiveEntries(state, { fromMs: normalized.startMs, toMs: normalized.endMs, activityIds: selected || undefined }), [state, normalized.startMs, normalized.endMs, selected]);
   const buckets = useMemo(() => {
     const values = new Map<string, number>();

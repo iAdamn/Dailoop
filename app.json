@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dailoop",
     "slug": "dailoop",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "scheme": "dailoop",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
@@ -23,7 +23,7 @@
         "android.permission.VIBRATE",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android/adaptive-foreground.png",
         "backgroundImage": "./assets/android/adaptive-background.png",
