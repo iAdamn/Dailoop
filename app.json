@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dailoop",
     "slug": "dailoop",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "scheme": "dailoop",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
@@ -23,7 +23,7 @@
         "android.permission.VIBRATE",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android/adaptive-foreground.png",
         "backgroundImage": "./assets/android/adaptive-background.png",
@@ -51,7 +51,17 @@
           }
         }
       ],
-      "./plugins/withAndroidRelease.cjs"
+      "./plugins/withAndroidRelease.cjs",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": false

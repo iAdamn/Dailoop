@@ -90,7 +90,7 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
   expect(recorded.parsed.state.activities).toEqual(original.activities);
   expect(recorded.parsed.state.activityRevisions).toEqual(original.activityRevisions);
   expect(recorded.parsed.state.settings).toEqual(original.settings);
-  expect(recorded.envelope.appVersion).toBe('0.1.6');
+  expect(recorded.envelope.appVersion).toBe('0.1.7');
   expect(recorded.parsed.state.settings).not.toHaveProperty('activityColumns');
   await page.reload();
   await expect(page.getByRole('checkbox', { name: '4 columnas', exact: true })).toBeChecked();
