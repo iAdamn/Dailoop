@@ -1,0 +1,11 @@
+appId: local.dailoop.personal
+name: v015 comparable home ready screenshot
+---
+- launchApp:
+    permissions:
+      all: deny
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000
+- assertVisible: "Registrar PRIVADA QA 001"
+- takeScreenshot: comparable-home

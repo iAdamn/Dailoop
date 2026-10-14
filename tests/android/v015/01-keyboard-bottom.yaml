@@ -1,0 +1,33 @@
+appId: local.dailoop.personal
+name: v015 keyboard lower activity input
+---
+- launchApp:
+    permissions:
+      all: deny
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000
+- tapOn: "Estadísticas"
+- extendedWaitUntil:
+    visible: "Tu ritmo"
+    timeout: 30000
+- tapOn: "Inicio"
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "＋ Nueva actividad"
+    direction: DOWN
+- tapOn: "＋ Nueva actividad"
+- extendedWaitUntil:
+    visible: "Una nueva actividad"
+    timeout: 30000
+- tapOn: "Nombre de la actividad"
+- inputText: "Borrador QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Categoría \(opcional\)'
+    direction: DOWN
+- tapOn: 'Categoría \(opcional\)'
+- inputText: "Categoria visible QA"
+- takeScreenshot: 02-category-keyboard-open

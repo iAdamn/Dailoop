@@ -1,0 +1,7 @@
+appId: local.dailoop.personal
+name: v015 discard real IME date draft without changing records
+---
+- hideKeyboard
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- assertVisible: "11 registros vigentes"

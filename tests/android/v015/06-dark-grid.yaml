@@ -1,0 +1,11 @@
+# Precondition: system theme, device cmd uimode night yes, preference four.
+# Uses the OS appearance so the audited dataset stays unchanged for restore checks.
+appId: local.dailoop.personal
+name: v015 native dark four-column controls
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Inicio"
+- assertVisible: "Registrar Actividad QA 002 con nombre largo y emoji repetido"
+- takeScreenshot: 50-native-dark-four-columns

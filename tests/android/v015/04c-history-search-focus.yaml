@@ -1,0 +1,10 @@
+appId: local.dailoop.personal
+name: v015 discard unsaved time then search history with IME
+---
+- hideKeyboard
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- tapOn: "Historial"
+- tapOn: "Buscar una actividad"
+- inputText: "QA 002"
+- takeScreenshot: history-search-focused

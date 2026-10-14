@@ -1,0 +1,12 @@
+appId: local.dailoop.personal
+name: v015 prepare empty date for paused real IME key taps
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Inicio"
+- tapOn: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+- tapOn: "Registrar otra fecha"
+- tapOn: 'Fecha \(AAAA-MM-DD\)'
+- eraseText
+- takeScreenshot: date-empty-before-real-ime

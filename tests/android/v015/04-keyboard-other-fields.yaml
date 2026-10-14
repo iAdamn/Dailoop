@@ -1,0 +1,30 @@
+# Requires the public activity detail (11 records), no persisted mutation.
+appId: local.dailoop.personal
+name: v015 native date time history and settings keyboard
+---
+- tapOn: "Registrar otra fecha"
+- tapOn: 'Fecha \(AAAA-MM-DD\)'
+- eraseText
+- inputText: "2026-10-10"
+- takeScreenshot: 30-native-date-input-visible
+- tapOn: 'Hora \(HH:mm, 24 horas\)'
+- eraseText
+- inputText: "12:34"
+- takeScreenshot: 31-native-time-input-visible
+- hideKeyboard
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- tapOn: "Historial"
+- tapOn: "Buscar una actividad"
+- inputText: "QA 002"
+- takeScreenshot: 32-native-history-search-visible
+- eraseText
+- hideKeyboard
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Zona horaria para agrupar"
+    direction: DOWN
+- tapOn: "Zona horaria para agrupar"
+- eraseText
+- inputText: "America/Bogota"
+- takeScreenshot: 33-native-settings-zone-visible

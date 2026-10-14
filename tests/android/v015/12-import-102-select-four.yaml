@@ -1,0 +1,32 @@
+# Only the fresh exclusive AVD. Restores synthetic checkpoint; adds no records.
+appId: local.dailoop.personal
+name: v015 import synthetic 102 checkpoint and select local four columns
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- tapOn: "Show roots"
+- tapOn: "Downloads"
+- tapOn:
+    text: "v015-current-102[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Confirmar reemplazo y restaurar"
+    direction: DOWN
+- tapOn: "Confirmar reemplazo y restaurar"
+- assertVisible: ".*Backup restaurado y verificado.*"
+- tapOn: "Inicio"
+- assertVisible: "Registrar PRIVADA QA 001"
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "4 columnas"
+    direction: UP
+- tapOn: "4 columnas"
+- tapOn: "Inicio"
+- takeScreenshot: fresh-avd-restored-synthetic-four-columns

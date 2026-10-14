@@ -1,0 +1,8 @@
+appId: local.dailoop.personal
+name: v015 focus date for independent IME capture
+---
+- tapOn: "Registrar otra fecha"
+- tapOn: 'Fecha \(AAAA-MM-DD\)'
+- eraseText
+- inputText: "2026-10-10"
+- takeScreenshot: date-focused

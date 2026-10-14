@@ -1,0 +1,22 @@
+appId: local.dailoop.personal
+name: v015 landscape 200 percent multiline note draft
+---
+- scrollUntilVisible:
+    element: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+    direction: DOWN
+- tapOn: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+- scrollUntilVisible:
+    element: "Registrar otra fecha"
+    direction: DOWN
+- tapOn: "Registrar otra fecha"
+- scrollUntilVisible:
+    element: 'Nota \(opcional\)'
+    direction: DOWN
+- tapOn: 'Nota \(opcional\)'
+- inputText: |
+    Linea 01 de QA, solo datos ficticios para el teclado.
+    Linea 02 de QA, solo datos ficticios para el teclado.
+    Linea 03 de QA, solo datos ficticios para el teclado.
+    Linea 04 de QA, solo datos ficticios para el teclado.
+    Linea 05 de QA, FIN VISIBLE DE QA.
+- takeScreenshot: landscape200-note-cursor

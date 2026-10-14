@@ -1,0 +1,12 @@
+appId: local.dailoop.personal
+name: v015 import synthetic baseline through real SAF
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- takeScreenshot: 00-baseline-picker

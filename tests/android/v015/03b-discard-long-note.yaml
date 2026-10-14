@@ -1,0 +1,14 @@
+appId: local.dailoop.personal
+name: v015 dirty note continues and discards visibly
+---
+- hideKeyboard
+- tapOn: "Cerrar diálogo"
+- assertVisible: "Hay cambios sin guardar"
+- takeScreenshot: 21-native-dirty-confirmation
+- tapOn: "Seguir editando"
+- assertVisible: 'Nota \(opcional\)'
+- assertVisible: "(?s).*FIN VISIBLE DE QA.*"
+- tapOn: "Cerrar diálogo"
+- assertVisible: "Hay cambios sin guardar"
+- tapOn: "Descartar cambios"
+- assertVisible: "11 registros vigentes"

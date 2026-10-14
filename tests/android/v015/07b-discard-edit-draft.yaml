@@ -1,0 +1,18 @@
+appId: local.dailoop.personal
+name: v015 visible edit dirty prompt continues then discards without persistence
+---
+- hideKeyboard
+- tapOn: "Cerrar diálogo"
+- assertVisible: "Hay cambios sin guardar"
+- takeScreenshot: edit-dirty-confirmation-visible
+- tapOn: "Seguir editando"
+- assertVisible: "Categoria editada QA"
+- tapOn: "Cerrar diálogo"
+- assertVisible: "Hay cambios sin guardar"
+- tapOn: "Descartar cambios"
+- scrollUntilVisible:
+    element: "11 registros vigentes"
+    direction: UP
+- assertVisible: "11 registros vigentes"
+- assertNotVisible: "Borrador de edicion QA"
+- takeScreenshot: edit-discarded-original-detail

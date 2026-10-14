@@ -1,0 +1,23 @@
+appId: local.dailoop.personal
+name: v015 cancel validated historical backup without mutation
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- tapOn: "Show roots"
+- tapOn: "Downloads"
+- tapOn:
+    text: "v015-upgrade-origin[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Cancelar sin cambiar datos"
+    direction: DOWN
+- tapOn: "Cancelar sin cambiar datos"
+- assertNotVisible: "Revisar restauración"
+- takeScreenshot: historical-restore-cancelled

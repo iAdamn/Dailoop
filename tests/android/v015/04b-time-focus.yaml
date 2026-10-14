@@ -1,0 +1,7 @@
+appId: local.dailoop.personal
+name: v015 focus next time field with keyboard already open
+---
+- tapOn: 'Hora \(HH:mm, 24 horas\)'
+- eraseText
+- inputText: "12:34"
+- takeScreenshot: time-focused

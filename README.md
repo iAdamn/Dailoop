@@ -6,6 +6,8 @@ Código abierto de **Dailoop**, una app personal de registros cotidianos, sin cu
 
 [Descargar APK](https://github.com/iAdamn/Dailoop/releases/download/v1.0/Dailoop-0.1.0.apk) · [Primera versión](https://github.com/iAdamn/Dailoop/releases/tag/v1.0) · [Instalación Android](docs/INSTALL-ANDROID.md) · [Detalles pendientes reportados en teléfono](docs/DEVICE-FEEDBACK.md)
 
+El desarrollo local **0.1.5** incorpora teclado visible, distribución de una a cuatro columnas, movimiento y optimización de dibujo/peso. Su [guía y estado de entrega](docs/RELEASE-0.1.5.md) y [verificación independiente](docs/QA-0.1.5.md) identifican la candidata probada y sus límites. Los artefactos locales están en `output/releases/v0.1.5/`; esto no publica otra release ni sustituye el APK del enlace anterior.
+
 ## Probar la preview
 
 La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en **http://localhost:8793**. Son orígenes distintos y mantienen bases distintas. Usar Edge o Chromium con Web Locks y aislamiento COOP/COEP.
@@ -44,6 +46,7 @@ npm run lint
 npm run test:domain
 npm run test:storage
 npm run test:unit -- --watch=false
+npx tsx --test tests/layout-v015.test.ts
 npx tsx --test tests/stress.test.ts
 npm run check:expo
 npx expo-doctor
@@ -51,6 +54,18 @@ npm run test:e2e
 ```
 
 Los E2E requieren ambas previews abiertas: desarrollo 8793 para contratos/rutas de QA y exportación 8795 para la sesión offline. Un worker y contextos aislados evitan mezclar bases de pruebas con las del usuario. Playwright usa el navegador Chromium disponible o Edge local. Los fixtures son ficticios. Las rutas `__spike` y `__storage-tests` sólo funcionan en desarrollo; no son funciones de la app personal.
+
+Para ejecutar los contratos Web sin bundling HTTP durante cada prueba, Expo permite una exportación de desarrollo. Con 8793 libre, en otra terminal:
+
+```powershell
+$env:NODE_ENV='development'
+npx expo export --platform web --dev --max-workers 2 --output-dir output/verification/v0.1.5/web-dev
+$env:DAILOOP_EXPORT_ROOT='output/verification/v0.1.5/web-dev'
+$env:DAILOOP_EXPORT_PORT='8793'
+node scripts/serve-export.mjs
+```
+
+Esta exportación mantiene `__DEV__=true` y las rutas de QA; no es la preview personal ni el APK de release. La exportación habitual sin `--dev` sigue sirviéndose en 8795 con `npm run preview` desde una terminal sin esas dos variables. El servidor restringe sus archivos a `dist` o `output/verification` de este proyecto y falla si el puerto está ocupado.
 
 El [checkpoint funcional](docs/CHECKPOINT.md) reúne resultados, matriz de aceptación y pendientes; el [pulido visual posterior](docs/UI-POLISH.md) documenta las superficies satinadas, Outfit/Manrope locales y su regresión específica. Consulta también [la evidencia de QA](docs/qa-plan.md), [las decisiones](docs/DECISIONS.md), [el contrato de dominio](docs/domain-contract.md), [almacenamiento y recuperación](docs/storage.md) y [avisos de dependencias](docs/dependency-audit.md). Los resultados Web no certifican SQLite Android, TalkBack ni diálogos nativos.
 
@@ -67,7 +82,7 @@ El backup v1 restaura por reemplazo completo, sin merge. No se admite una versi�
 
 ## Android
 
-APK firmado para instalar y probar: [Dailoop 0.1.0, compilación 2](https://github.com/iAdamn/Dailoop/releases/download/v1.0/Dailoop-0.1.0.apk), con [guía de instalación y traslado de datos](docs/INSTALL-ANDROID.md). Se probó en emulador Android 17. La prueba inicial del usuario en Samsung S26 Ultra señala lentitud de navegación y campos tapados por el teclado; esos detalles están documentados y pendientes de corrección.
+APK público: [Dailoop 0.1.0, compilación 2](https://github.com/iAdamn/Dailoop/releases/download/v1.0/Dailoop-0.1.0.apk), con [guía de instalación y traslado de datos](docs/INSTALL-ANDROID.md). Se probó en emulador Android 17. La prueba inicial del usuario en Samsung S26 Ultra señaló lentitud de navegación y campos tapados por el teclado. La candidata local 0.1.5 incorpora correcciones y mejora medida en el emulador; la [guía 0.1.5](docs/RELEASE-0.1.5.md) identifica su APK ARM64 y los criterios de fluidez/prueba física que siguen pendientes.
 
 Gate abierto por el usuario: «Vamos con el APK». La [guía de compilación local y firma](docs/ANDROID-BUILD.md) explica herramientas, clave privada y actualizaciones; [ANDROID-RELEASE.md](docs/ANDROID-RELEASE.md) registra el binario, pruebas ejecutadas y pendientes. El objetivo p95 de registro menor de 500 ms requiere medición en un dispositivo identificado. La compilación no publica recursos ni datos remotos.
 

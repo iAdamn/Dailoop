@@ -1,0 +1,20 @@
+# Device font_scale=2.0, portrait. Requested preference must already be four.
+appId: local.dailoop.personal
+name: v015 native 200 percent density adapts without replacing preference
+---
+- launchApp:
+    permissions:
+      all: deny
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000
+- takeScreenshot: 40-native-font200-home-ready
+- scrollUntilVisible:
+    element: "Registrar Actividad QA 002 con nombre largo y emoji repetido"
+    direction: DOWN
+- takeScreenshot: 41-native-font200-compact-controls
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "4 columnas"
+    direction: DOWN
+- takeScreenshot: 42-native-font200-requested-four

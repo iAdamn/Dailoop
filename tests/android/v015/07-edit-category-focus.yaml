@@ -1,0 +1,23 @@
+appId: local.dailoop.personal
+name: v015 edit existing activity without committing
+---
+- tapOn: "Inicio"
+- scrollUntilVisible:
+    element: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+    direction: DOWN
+- tapOn: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+- scrollUntilVisible:
+    element: "Editar actividad"
+    direction: DOWN
+- tapOn: "Editar actividad"
+- tapOn: "Nombre de la actividad"
+- eraseText
+- inputText: "Borrador de edicion QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Categoría \(opcional\)'
+    direction: DOWN
+- tapOn: 'Categoría \(opcional\)'
+- eraseText
+- inputText: "Categoria editada QA"
+- takeScreenshot: edit-category-focused

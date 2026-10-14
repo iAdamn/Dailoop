@@ -1,0 +1,5 @@
+appId: local.dailoop.personal
+name: v015 append note end marker through Maestro IME input
+---
+- inputText: "N VISIBLE DE QA"
+- takeScreenshot: multiline-final-marker-visible

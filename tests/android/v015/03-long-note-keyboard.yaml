@@ -1,0 +1,21 @@
+# Ends with a focused multiline draft and real IME for independent bounds/cursor inspection.
+appId: local.dailoop.personal
+name: v015 native long note remains above keyboard
+---
+- launchApp:
+    permissions:
+      all: deny
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000
+- tapOn: "Inicio"
+- tapOn: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+- scrollUntilVisible:
+    element: "Registrar otra fecha"
+    direction: DOWN
+- tapOn: "Registrar otra fecha"
+- tapOn: 'Nota \(opcional\)'
+- inputText: "Inicio QA"
+# The QA driver appends 20 real lines through Android input key events after this
+# flow, preserving the actual visible IME and avoiding YAML/inputText newline folding.
+- takeScreenshot: 20-native-long-note-cursor

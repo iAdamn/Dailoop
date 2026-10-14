@@ -1,0 +1,13 @@
+appId: local.dailoop.personal
+name: v015 unchanged zone input for independent IME capture
+---
+- eraseText
+- hideKeyboard
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Zona horaria para agrupar"
+    direction: DOWN
+- tapOn: "Zona horaria para agrupar"
+- eraseText
+- inputText: "America/Bogota"
+- takeScreenshot: settings-zone-focused

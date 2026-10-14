@@ -1,0 +1,17 @@
+appId: local.dailoop.personal
+name: v015 select and restore small synthetic fixture
+---
+- tapOn: "Show roots"
+- tapOn: "Downloads"
+- tapOn:
+    text: "v015-10a-100e[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Confirmar reemplazo y restaurar"
+    direction: DOWN
+- tapOn: "Confirmar reemplazo y restaurar"
+- assertVisible: ".*Backup restaurado y verificado.*"
+- tapOn: "Inicio"
+- assertVisible: "Ver detalle de PRIVADA QA 001"
+- takeScreenshot: 01-baseline-loaded

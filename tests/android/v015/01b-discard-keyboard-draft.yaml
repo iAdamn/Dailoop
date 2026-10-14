@@ -1,0 +1,13 @@
+appId: local.dailoop.personal
+name: v015 discard only unsaved keyboard draft
+---
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- tapOn: "Estadísticas"
+- extendedWaitUntil:
+    visible: "Tu ritmo"
+    timeout: 30000
+- tapOn: "Inicio"
+- extendedWaitUntil:
+    visible: "¿Qué quieres registrar?"
+    timeout: 30000

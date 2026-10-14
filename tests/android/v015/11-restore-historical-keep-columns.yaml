@@ -1,0 +1,30 @@
+appId: local.dailoop.personal
+name: v015 restore historical data and retain local four columns
+---
+- launchApp:
+    permissions:
+      all: deny
+- tapOn: "Ajustes"
+- scrollUntilVisible:
+    element: "Restaurar un backup"
+    direction: DOWN
+- tapOn: "Restaurar un backup"
+- tapOn: "Show roots"
+- tapOn: "Downloads"
+- tapOn:
+    text: "v015-upgrade-origin[.]json"
+    id: "android:id/title"
+- assertVisible: "Revisar restauración"
+- scrollUntilVisible:
+    element: "Confirmar reemplazo y restaurar"
+    direction: DOWN
+- tapOn: "Confirmar reemplazo y restaurar"
+- assertVisible: ".*Backup restaurado y verificado.*"
+- tapOn: "Inicio"
+- assertVisible: "Registrar PRIVADA QA 001"
+- takeScreenshot: historical-restored-four-column-home
+- tapOn: "Ver detalle de Actividad QA 002 con nombre largo y emoji repetido"
+- assertVisible: "10 registros vigentes"
+- tapOn: "Ajustes"
+- assertVisible: "4 columnas"
+- takeScreenshot: historical-restored-local-preference

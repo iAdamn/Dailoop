@@ -1,0 +1,13 @@
+appId: local.dailoop.personal
+name: v015 discard landscape note without adding entry
+---
+- tapOn: "Cerrar diálogo"
+- tapOn: "Descartar cambios"
+- scrollUntilVisible:
+    element: "10 registros vigentes"
+    direction: UP
+- assertVisible: "10 registros vigentes"
+- scrollUntilVisible:
+    element: ".*Volver a Inicio"
+    direction: UP
+- tapOn: ".*Volver a Inicio"

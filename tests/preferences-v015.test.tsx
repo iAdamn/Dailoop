@@ -1,0 +1,77 @@
+import type { PresentationPreferences } from '../src/infrastructure/preferences';
+
+let mockPersisted: string | null = null;
+const mockWrite = jest.fn<Promise<void>, [string]>();
+const mockDatabase = {
+  getFirstAsync: jest.fn(async (sql: string) => sql.includes('PRAGMA') ? { user_version: 1 } : mockPersisted === null ? null : { json: mockPersisted }),
+  execAsync: jest.fn(async () => undefined),
+  withTransactionAsync: jest.fn(async (work: () => Promise<void>) => work()),
+  runAsync: jest.fn(async (_sql: string, json: string) => { await mockWrite(json); mockPersisted = json; }),
+};
+jest.mock('expo-sqlite', () => ({ openDatabaseAsync: jest.fn(async () => mockDatabase) }));
+
+async function freshStore() {
+  delete (globalThis as typeof globalThis & { __dailoopPresentation?: unknown }).__dailoopPresentation;
+  let preferences!: typeof import('../src/infrastructure/preferences');
+  jest.isolateModules(() => { preferences = jest.requireActual('../src/infrastructure/preferences'); });
+  return preferences;
+}
+
+beforeEach(() => {
+  mockPersisted = null;
+  jest.clearAllMocks();
+  mockWrite.mockImplementation(async () => undefined);
+});
+afterEach(() => { delete (globalThis as typeof globalThis & { __dailoopPresentation?: unknown }).__dailoopPresentation; });
+
+test('presentation parsing accepts only the four choices and recovers malformed local values', async () => {
+  const { parsePresentationPreferences } = await freshStore();
+  for (const columns of [1, 2, 3, 4]) expect(parsePresentationPreferences(JSON.stringify({ activityColumns: columns }))).toEqual({ activityColumns: columns });
+  for (const value of [null, '', 'broken', '{}', 'null', '[]', '{"activityColumns":0}', '{"activityColumns":5}', '{"activityColumns":"4"}']) {
+    expect(parsePresentationPreferences(value)).toEqual({ activityColumns: 1 });
+  }
+});
+
+test('native preference is announced only after its write commits and loads after a fresh store', async () => {
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const commit = new Promise<void>(resolve => { release = resolve; });
+  mockWrite.mockImplementationOnce(async () => { entered(); await commit; });
+  const store = (await freshStore()).presentationPreferences;
+  expect(await store.load()).toEqual({ activityColumns: 1 });
+  const published: PresentationPreferences[] = [];
+  store.subscribe(value => published.push(value));
+  const pending = store.setColumns(4);
+  await started;
+  expect(published).toEqual([]);
+  expect(mockPersisted).toBeNull();
+  release();
+  expect(await pending).toEqual({ activityColumns: 4 });
+  expect(published).toEqual([{ activityColumns: 4 }]);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 4 });
+});
+
+test('failed preference write preserves the prior value and does not poison later serialized writes', async () => {
+  mockPersisted = '{"activityColumns":2}';
+  const store = (await freshStore()).presentationPreferences;
+  await store.load();
+  const published: PresentationPreferences[] = [];
+  store.subscribe(value => published.push(value));
+  mockWrite.mockRejectedValueOnce(new Error('SQLite full'));
+  await expect(store.setColumns(4)).rejects.toThrow('SQLite full');
+  expect(mockPersisted).toBe('{"activityColumns":2}');
+  expect(published).toEqual([]);
+  await expect(store.setColumns(3)).resolves.toEqual({ activityColumns: 3 });
+  expect(published).toEqual([{ activityColumns: 3 }]);
+});
+
+test('queued changes preserve user order and invalid runtime requests never reach storage', async () => {
+  const store = (await freshStore()).presentationPreferences;
+  await store.load();
+  await Promise.all([store.setColumns(2), store.setColumns(4), store.setColumns(1)]);
+  expect(mockWrite.mock.calls.map(([json]) => JSON.parse(json).activityColumns)).toEqual([2, 4, 1]);
+  await expect(store.setColumns(5 as 1)).rejects.toThrow('Selecciona');
+  expect(mockWrite).toHaveBeenCalledTimes(3);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 1 });
+});

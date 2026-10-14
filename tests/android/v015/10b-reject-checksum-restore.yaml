@@ -1,0 +1,15 @@
+appId: local.dailoop.personal
+name: v015 reject checksum corruption without mutation
+---
+- tapOn: "Restaurar un backup"
+- tapOn: "Show roots"
+- tapOn: "Downloads"
+- tapOn:
+    text: "v015-corrupt-checksum[.]json"
+    id: "android:id/title"
+- scrollUntilVisible:
+    element: ".*El archivo está dañado: checksum incorrecto[.].*"
+    direction: DOWN
+- assertVisible: ".*El archivo está dañado: checksum incorrecto[.].*"
+- assertNotVisible: "Revisar restauración"
+- takeScreenshot: checksum-corruption-rejected
