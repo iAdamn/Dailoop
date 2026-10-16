@@ -1,0 +1,11 @@
+import type { DomainState } from '../domain';
+import type { AppLanguage } from '../i18n/core';
+import type { NativeAction } from './widgetActions';
+export const publishWidgetSnapshot=async(_state:DomainState,_language:AppLanguage):Promise<void>=>{};
+export const requestWidgetPin=async()=>false;
+export const clearWidgets=async():Promise<void>=>{};
+export const pendingWidgetActions=async():Promise<NativeAction[]>=>[];
+export const finishWidgetAction=async(_id:string,_ok:boolean):Promise<void>=>{};
+export const discardWidgetAction=async(_id:string):Promise<void>=>{};
+export const enqueueNativeAction=async(_action:NativeAction):Promise<void>=>{};
+export const subscribeWidgetActions=(_listener:()=>void)=>()=>{};

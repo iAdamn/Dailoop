@@ -4,12 +4,19 @@ plugins {
 }
 
 group = 'local.dailoop'
-version = '0.5.0'
+version = '0.7.0'
 
 android {
   namespace 'local.dailoop.glass'
   defaultConfig {
     versionCode 1
-    versionName '0.5.0'
+    versionName '0.7.0'
   }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'androidx.credentials:credentials:1.3.0'
+  implementation 'androidx.credentials:credentials-play-services-auth:1.3.0'
+  implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
 }

@@ -1,1 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <application>
+    <receiver android:name=".DailoopWidgetProvider" android:exported="true" android:label="Dailoop">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/dailoop_widget_info" />
+    </receiver>
+    <receiver android:name=".DailoopWidgetActionReceiver" android:exported="false" />
+    <receiver android:name=".DailoopWidgetPinReceiver" android:exported="false" />
+    <activity android:name=".DailoopWidgetConfigActivity" android:exported="true" android:theme="@android:style/Theme.Material.NoActionBar">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+    </activity>
+    <service android:name=".DailoopWidgetService" android:exported="false" android:foregroundServiceType="shortService" />
+  </application>
+</manifest>

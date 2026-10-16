@@ -1,4 +1,13 @@
 {
-  "platforms": ["android"],
-  "android": { "modules": ["local.dailoop.glass.DailoopGlassModule"] }
+  "platforms": [
+    "android"
+  ],
+  "android": {
+    "modules": [
+      "local.dailoop.glass.DailoopGlassModule",
+      "local.dailoop.glass.DailoopBackupModule",
+      "local.dailoop.glass.DailoopAccountsModule",
+      "local.dailoop.glass.DailoopWidgetModule"
+    ]
+  }
 }

@@ -1,9 +1,9 @@
 {
   "name": "dailoop",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "license": "MIT",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "web": "node scripts/preview.mjs",
     "preview": "node scripts/serve-export.mjs",
@@ -12,18 +12,26 @@
     "test:stress": "tsx --test tests/stress.test.ts",
     "test:decoder": "tsx --test tests/decoder.test.ts",
     "typecheck": "tsc --noEmit",
-    "test:domain": "tsx --test tests/domain.test.ts tests/planning.test.ts tests/streaks.test.ts",
+    "test:domain": "tsx --test tests/domain.test.ts tests/planning.test.ts tests/streaks.test.ts tests/recurrence.test.ts tests/reminder-performance.test.ts tests/v070-planning.test.ts",
+    "test:native-recurrence": "tsx --test tests/native-recurrence.test.ts",
     "test:storage": "tsx --test tests/schema.test.ts tests/session.test.ts tests/native-boundary.test.ts",
+    "test:sync": "tsx --test tests/sync-merge.test.ts tests/sync-controller.test.ts tests/sync-auth.test.ts tests/sync-cloud.test.ts tests/sync-oauth.test.ts tests/v070-deletion.test.ts tests/v070-account.test.ts tests/v070-controller-deletion.test.ts",
+    "test:sync-rules": "node scripts/verify-sync-rules.mjs",
     "test:unit": "jest --runInBand",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/build-account-site.mjs && playwright test",
     "export:web": "expo export --platform web",
     "check:expo": "expo install --check",
     "lint": "eslint src app tests",
-    "postinstall": "node scripts/patch-android-blur.mjs && node scripts/patch-android-audio.mjs"
+    "postinstall": "node scripts/patch-android-blur.mjs && node scripts/patch-android-audio.mjs && node scripts/patch-android-recurring-notifications.mjs && node scripts/patch-tooling-security.mjs && node scripts/patch-android-notification-actions.mjs",
+    "test:ui-domain": "tsx --test tests/layout-v015.test.ts tests/retained-period.test.ts",
+    "test:native-backup": "tsx --test tests/native-backup-reader.test.ts",
+    "test:tooling-security": "tsx --test tests/tooling-security.test.ts",
+    "test:widget": "tsx --test tests/v070-widget-actions.test.ts",
+    "build:account-site": "node scripts/build-account-site.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "1.4.1",
-    "@expo/metro-runtime": "57.0.16",
+    "@expo/metro-runtime": "57.0.17",
     "@formatjs/intl-datetimeformat": "7.8.1",
     "@formatjs/intl-getcanonicallocales": "3.2.12",
     "@formatjs/intl-locale": "5.3.12",
@@ -31,22 +39,23 @@
     "@formatjs/intl-pluralrules": "6.3.15",
     "@formatjs/intl-segmenter": "12.2.15",
     "date-fns": "4.4.0",
-    "expo": "57.0.28",
-    "expo-asset": "~57.0.19",
+    "expo": "57.0.30",
+    "expo-asset": "57.0.20",
     "expo-audio": "~57.0.5",
     "expo-blur": "57.0.3",
     "expo-clipboard": "57.0.2",
-    "expo-constants": "57.0.21",
+    "expo-constants": "57.0.22",
     "expo-crypto": "57.0.4",
     "expo-document-picker": "57.0.3",
     "expo-file-system": "57.0.7",
     "expo-font": "57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linear-gradient": "57.0.2",
-    "expo-linking": "57.0.12",
+    "expo-linking": "57.0.13",
     "expo-localization": "57.0.2",
-    "expo-notifications": "~57.0.22",
-    "expo-router": "57.0.26",
+    "expo-notifications": "57.0.23",
+    "expo-router": "57.0.28",
+    "expo-secure-store": "57.0.4",
     "expo-sharing": "57.0.23",
     "expo-splash-screen": "57.0.10",
     "expo-sqlite": "57.0.4",
@@ -77,5 +86,20 @@
     "test-renderer": "1.2.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-audio",
+          "expo-blur",
+          "expo-notifications"
+        ]
+      }
+    }
+  },
+  "overrides": {
+    "uuid": "11.1.1",
+    "sprintf-js": "1.1.3"
   }
 }
