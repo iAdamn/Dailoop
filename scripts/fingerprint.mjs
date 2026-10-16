@@ -24,8 +24,8 @@ async function fingerprints(paths){
   }
   return {treeSha256:hash(JSON.stringify(files)),files};
 }
-const roots=['app','src','tests','scripts','assets','docs','plugins','licenses','modules'];
-const sourceFiles=['.gitignore','AGENTS.md','README.md','LICENSE','THIRD-PARTY-NOTICES.md','app.json','package.json','package-lock.json','tsconfig.json','metro.config.js','eslint.config.js','jest.config.js','playwright.config.ts','playwright.release.config.ts'];
+const roots=['app','src','tests','scripts','assets','docs','plugins','licenses','modules','firebase','site','.github'];
+const sourceFiles=['index.js','.gitignore','AGENTS.md','README.md','LICENSE','THIRD-PARTY-NOTICES.md','app.json','package.json','package-lock.json','tsconfig.json','metro.config.js','eslint.config.js','jest.config.js','playwright.config.ts','playwright.release.config.ts'];
 for(const directory of roots)sourceFiles.push(...await walk(directory));
 const source=await fingerprints(sourceFiles);
 const webExport=await fingerprints(await walk('dist'));

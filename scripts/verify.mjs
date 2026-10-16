@@ -6,9 +6,12 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 if(!process.env.npm_execpath)throw new Error('Ejecuta npm run verify.');
 const version=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')).version;
-const output=path.join(root,'output','verification',`v${version}`,'automated');
+const verificationRoot=path.join(root,'output','verification');
+const output=process.env.DAILOOP_VERIFY_OUTPUT ? path.resolve(root,process.env.DAILOOP_VERIFY_OUTPUT) : path.join(verificationRoot,`v${version}`,'automated');
+const relativeOutput=path.relative(verificationRoot,output);
+if(!relativeOutput || relativeOutput.startsWith('..') || path.isAbsolute(relativeOutput))throw new Error('Verification output must stay inside output/verification.');
 await mkdir(output,{recursive:true});
-const checks=[['typecheck'],['lint'],['test:domain'],['test:storage'],['test:unit','--','--watch=false'],['test:stress'],['test:decoder'],['check:assets'],['check:expo']];
+const checks=[['typecheck'],['lint'],['test:domain'],['test:storage'],['test:sync'],['test:widget'],['test:unit','--','--watch=false'],['test:ui-domain'],['test:stress'],['test:decoder'],['test:native-recurrence'],['test:native-backup'],['test:tooling-security'],['check:assets'],['check:expo']];
 const results=[];
 for(const args of checks){
   const start=Date.now();

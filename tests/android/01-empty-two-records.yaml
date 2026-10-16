@@ -1,4 +1,4 @@
-# Requires the coordinator's clean install on the disposable emulator-5580.
+# Historical 0.1.0 flow. Never operate emulator-5580; see README.md before reuse.
 # Does not clear application data; a non-empty initial state fails visibly.
 appId: local.dailoop.personal
 name: Offline first launch, two records and force-stop persistence

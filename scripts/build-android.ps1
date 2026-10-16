@@ -58,10 +58,16 @@ try {
   if (-not (Test-Path "$env:ANDROID_HOME\platforms\android-36\android.jar")) { throw 'Android SDK 36 is missing.' }
   Push-Location $projectRoot
   try {
+    & node scripts/patch-tooling-security.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Tooling security mitigation verification failed.' }
     & node scripts/patch-android-blur.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Native palette patch failed.' }
     & node scripts/patch-android-audio.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Foreground-only audio patch failed.' }
+    & node scripts/patch-android-recurring-notifications.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Zoned recurrence notification patch failed.' }
+    & node scripts/patch-android-notification-actions.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Durable notification actions patch failed.' }
     $prebuildArgs = @('expo', 'prebuild', '--platform', 'android', '--no-install')
     if ($Incremental) { $prebuildArgs += '--no-clean' }
     & npx.cmd @prebuildArgs

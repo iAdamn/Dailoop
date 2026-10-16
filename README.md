@@ -1,20 +1,20 @@
 # Dailoop
 
-Código abierto de **Dailoop**, una app personal de registros cotidianos, sin cuenta ni servidor de datos. React Native/Expo, TypeScript y SQLite, con interfaz glass y preview en navegador.
+Código abierto de **Dailoop**, una app personal de registros cotidianos que funciona sin cuenta y sin internet. React Native/Expo, TypeScript y SQLite, con interfaz glass y preview en navegador. Cuenta Google y sincronización Firebase Spark opcionales, activadas expresamente desde Ajustes.
 
-**Dailoop 1.0** es la primera publicación del repositorio. El APK incluido conserva la versión interna **Dailoop 0.1.0, compilación 2**; publicar el código no modifica el binario ya probado.
+**Versión actual: 0.7.0 / compilación Android 8**, ARM64, firmada con el mismo certificado para actualizar conservando datos.
 
-[Descargar APK](https://github.com/iAdamn/Dailoop/releases/download/v1.0/Dailoop-0.1.0.apk) · [Primera versión](https://github.com/iAdamn/Dailoop/releases/tag/v1.0) · [Instalación Android](docs/INSTALL-ANDROID.md) · [Detalles pendientes reportados en teléfono](docs/DEVICE-FEEDBACK.md)
+[Descargar APK 0.7.0](https://github.com/iAdamn/Dailoop/releases/download/v0.7.0/Dailoop-0.7.0-build8-arm64.apk) · [Release](https://github.com/iAdamn/Dailoop/releases/tag/v0.7.0) · [Cambios y verificación](docs/RELEASE-0.7.0.md) · [Pruebas en teléfono](docs/PRUEBAS-0.7.0.md)
 
-El desarrollo local **0.1.5** incorpora teclado visible, distribución de una a cuatro columnas, movimiento y optimización de dibujo/peso. Su [guía y estado de entrega](docs/RELEASE-0.1.5.md) y [verificación independiente](docs/QA-0.1.5.md) identifican la candidata probada y sus límites. Los artefactos locales están en `output/releases/v0.1.5/`; esto no publica otra release ni sustituye el APK del enlace anterior.
+Incluye calendario de actividad, orden manual y fijados, controles separados de sonido/háptica, estado de sincronización en encabezado, acciones de recordatorio y widget Android. Cuenta Google y sincronización opcionales con Firebase Spark; el registro local funciona sin internet. Español, inglés y portugués completos, sin servicio remoto de traducción.
 
-El parche local **0.1.6** mantiene las cuatro pantallas preparadas y permite cambiar de pestaña arrastrando la barra inferior. El [contrato y estado de navegación](docs/NAVIGATION-0.1.6.md) y sus [pruebas](docs/NAVIGATION-0.1.6-QA.md) distinguen el funcionamiento comprobado de la fluidez pendiente de confirmar en el teléfono.
+[Privacidad](https://iadamn.github.io/Dailoop/privacy/) · [Borrar cuenta y datos online sin app](https://iadamn.github.io/Dailoop/delete-account/). Se verifica la misma cuenta con Google y se confirma expresamente el borrado. Las copias locales y backups exportados no se borran remotamente. Un marcador técnico mínimo impide resubidas desde sesiones antiguas.
 
-La versión **0.1.7** añadió respuesta háptica y sonidos de vidrio, formulario compacto con selector de emojis completo sin conexión, colores claros de toda la rueda y animaciones rápidas de botones, ventanas y pestañas. La [entrega 0.1.7](docs/RELEASE-0.1.7.md) identifica el APK local firmado y sus comprobaciones; el enlace público histórico de arriba continúa apuntando a 0.1.0.
-
-La versión **0.5.0** corrige audio Android, añade categorías/carpetas y búsqueda compacta, aviso con X/cinco segundos y animación de salida, arrastre proporcional con refracción de agua/háptica, encabezado glass, preferencia de refresco y registro de otra hora. También incorpora **Registro, Recordatorios, Estadísticas y Ajustes**, con Historial dentro de Estadísticas, avisos locales múltiples y rachas por días. [Estado y aceptación](docs/PROGRESS-0.5.0.md) · [Reglas de recordatorios y rachas](docs/RECORDATORIOS-RACHAS-0.5.0.md). [Entrega firmada 0.5.0](docs/RELEASE-0.5.0.md): código publicado por bloques y APK local ARM64 en `output/releases/v0.5.0/`; el enlace público histórico continúa apuntando a 0.1.0. Se mantiene 0.5.0 hasta aceptar estabilidad en teléfono. SQLite migra a esquema físico 2 conservando el historial; importa backups v1 y usa v2 al añadir planificación.
+La primera publicación del repositorio fue Dailoop 1.0 con APK interno 0.1.0. Se conservan sus artefactos y los de 0.1.5, 0.1.6, 0.1.7 y 0.5.0; sus documentos describen entregas históricas, no el estado actual. [Compilación anterior 0.5.0/build7](docs/RELEASE-0.5.0-BUILD-7.md).
 
 ## Probar la preview
+
+La preview incorpora [idioma completo en español, inglés y portugués de Brasil](docs/LANGUAGES-0.5.0.md), elegible en **Ajustes → Idioma**. Se guarda en el dispositivo y funciona sin red; tus nombres, categorías, notas y copias conservan su contenido original. Está incluido en la APK 0.7.0.
 
 La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en **http://localhost:8793**. Son orígenes distintos y mantienen bases distintas. Usar Edge o Chromium con Web Locks y aislamiento COOP/COEP.
 
@@ -26,7 +26,9 @@ La preview estable se sirve en **http://localhost:8795**; la de desarrollo, en *
 
 En Recordatorios puedes vincular una actividad, elegir fecha/hora y varios avisos, o completarla para guardar un único registro. Los avisos se reciben desde Android con permiso del sistema; la preview permite gestionar datos sin simular su entrega. Las rachas cuentan fechas locales consecutivas, no pulsaciones repetidas en un día.
 
-Los datos son locales de ese navegador y origen. No se sincronizan con Android. Borrar datos del sitio puede eliminarlos: conserva backups manuales. Una segunda pestaña permite consultar y recibe actualizaciones; para escribir, usa la primera o ciérrala y recarga la segunda. El servidor local debe estar disponible para cargar la preview; no es una PWA con arranque Web offline.
+Los datos son locales de ese navegador y origen. En **Ajustes → Cuenta y sincronización** puedes conectar Google y, por separado, activar la sincronización con otros dispositivos. Se guardan primero en SQLite; sin internet los cambios quedan pendientes. Los conflictos incompatibles requieren elegir una versión y conservan ambas como copias. [Configuración, límites y pruebas](docs/SYNC-0.5.0.md). Está incluido en la APK 0.7.0.
+
+Borrar datos del sitio puede eliminarlos: conserva backups manuales. Una segunda pestaña permite consultar y recibe actualizaciones; para escribir, usa la primera o ciérrala y recarga la segunda. El servidor local debe estar disponible para cargar la preview; no es una PWA con arranque Web offline.
 
 ## Ejecutar desde el código
 
@@ -44,7 +46,7 @@ npm run export:web
 node scripts/serve-export.mjs
 ```
 
-No se necesitan variables de entorno, tokens, servicios de base de datos ni credenciales. `.env*`, claves de firma, dependencias, builds nativos y cachés están excluidos de Git.
+El uso offline no requiere variables ni credenciales. Para compilar con Google/sincronización, copia .env.example a .env.local y configura los tres identificadores públicos de tu propio proyecto Firebase. La APK publicada ya los incluye. Las reglas por UID protegen los datos; nunca incluyas claves administrativas. `.env*`, claves de firma, dependencias, builds nativos y cachés están excluidos de Git.
 
 ## Verificar
 
@@ -54,8 +56,10 @@ npm run lint
 npm run test:domain
 npm run test:storage
 npm run test:unit -- --watch=false
-npx tsx --test tests/layout-v015.test.ts
-npx tsx --test tests/stress.test.ts
+npm run test:ui-domain
+npm run test:stress
+npm run test:native-backup
+npm run test:tooling-security
 npm run check:expo
 npx expo-doctor
 npm run test:e2e

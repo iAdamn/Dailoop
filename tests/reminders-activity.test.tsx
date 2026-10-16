@@ -15,6 +15,15 @@ jest.mock('react-native-gesture-handler', () => {
     GestureDetector: ({ children }: { children: React.ReactNode }) => children };
 });
 
+
+async function selectTime(value: string) {
+  const [hour, minute] = value.split(':');
+  await fireEvent.press(screen.getByRole('button', { name: 'Hora del recordatorio' }));
+  await fireEvent.press(screen.getByRole('button', { name: `Hora ${hour}` }));
+  await fireEvent.press(screen.getByRole('button', { name: `Minuto ${minute}` }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Elegir esta hora' }));
+}
+
 const NOW = Date.parse('2026-10-14T17:00:00Z');
 let serial = 0;
 const nextId = () => `559c0000-0000-4000-9000-${String(++serial).padStart(12, '0')}`;
@@ -58,7 +67,7 @@ test('cancelling a nested activity preserves the selected activity, time and not
   await fireEvent.press(screen.getByRole('button', { name: 'Fecha del recordatorio' }));
   await fireEvent.press(screen.getByTestId('calendar-day-2026-10-15'));
   await fireEvent.press(screen.getByRole('button', { name: 'Elegir esta fecha' }));
-  await fireEvent.changeText(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)'), '19:45');
+  await selectTime('19:45');
   await fireEvent.press(screen.getByRole('switch', { name: 'Avisos de este recordatorio' }));
   await fireEvent.press(screen.getByRole('checkbox', { name: '3 horas antes' }));
   await openActivity();
@@ -68,7 +77,7 @@ test('cancelling a nested activity preserves the selected activity, time and not
   expect(screen.getByText('Nuevo recordatorio')).toBeTruthy();
   expect(screen.getByRole('checkbox', { name: 'Elegir actividad Café' })).toBeChecked();
   expect(screen.getByText('15 de octubre de 2026')).toBeTruthy();
-  expect(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)')).toHaveDisplayValue('19:45');
+  expect(screen.getByRole('button', { name: 'Hora del recordatorio' })).toHaveAccessibilityValue({ text: '19:45' });
   expect(screen.getByRole('switch', { name: 'Avisos de este recordatorio' })).toBeChecked();
   expect(screen.getByRole('checkbox', { name: '3 horas antes' })).toBeChecked();
   expect(values.onCreateActivity).not.toHaveBeenCalled();
@@ -81,7 +90,7 @@ test('only a confirmed activity is selected, and the reminder is saved separatel
   let resolve!: (result: CommandResult) => void;
   values.onCreateActivity.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
   await render(<ReminderForm {...values} />);
-  await fireEvent.changeText(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)'), '21:15');
+  await selectTime('21:15');
   await openActivity();
   await fireEvent.changeText(screen.getByLabelText('Nombre de la actividad'), 'Leer');
   await fireEvent.press(screen.getByRole('button', { name: 'Crear actividad' }));
@@ -93,7 +102,7 @@ test('only a confirmed activity is selected, and the reminder is saved separatel
   const result = execute(values.state, command, { nowMs: NOW, operationId: nextId(), nextId });
   await act(async () => { resolve(result); });
   expect(screen.getByRole('checkbox', { name: 'Elegir actividad Leer' })).toBeChecked();
-  expect(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)')).toHaveDisplayValue('21:15');
+  expect(screen.getByRole('button', { name: 'Hora del recordatorio' })).toHaveAccessibilityValue({ text: '21:15' });
   expect(key).toBe(`reminder-create-activity-${result.result.activityId}`);
   expect(values.onSave).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: 'Crear recordatorio' }));

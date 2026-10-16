@@ -1,3 +1,4 @@
+import { chooseTime } from './browserTime';
 import { chooseDate } from './browserCalendar';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -30,12 +31,12 @@ async function reminder(page: Page, date: string, time: string, alerts = false) 
   await page.getByRole('button', { name: '+ Nuevo recordatorio', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Elegir actividad Leer', exact: true }).click();
   await chooseDate(page, 'Fecha del recordatorio', date);
-  await page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true }).fill(time);
+  await chooseTime(page, 'Hora del recordatorio', time);
   if (alerts) {
     await page.getByRole('switch', { name: 'Avisos de este recordatorio', exact: true }).click();
     for (const name of ['1 día antes', '3 horas antes', '1 hora antes', '30 min antes']) await page.getByRole('checkbox', { name, exact: true }).click();
-    await page.getByLabel('Anticipación personalizada', { exact: true }).fill('15');
-    await page.getByRole('button', { name: 'Añadir aviso', exact: true }).click();
+    await page.getByRole('button', { name: 'Elegir anticipación personalizada', exact: true }).click();
+    await page.getByRole('button', { name: 'Añadir aviso personalizado', exact: true }).click();
   }
   await page.getByRole('button', { name: 'Crear recordatorio', exact: true }).click();
   await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
@@ -163,4 +164,70 @@ test('administration dialogs and success notices retain their content through an
   await tab(page, 'Estadísticas');
   await page.getByRole('button', { name: 'Ver historial', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Leer, .*registrado$/ })).toHaveCount(1);
+});
+
+test('Monday and Tuesday recurrence survives popup cancellation, reload, completion and v3 backup restore', async ({ page }) => {
+  await tab(page, 'Recordatorios');
+  await page.getByRole('button', { name: '+ Nuevo recordatorio', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Elegir actividad Leer', exact: true }).click();
+  await page.getByRole('button', { name: 'Hora del recordatorio', exact: true }).click();
+  await page.getByRole('button', { name: 'Hora 22', exact: true }).click();
+  await page.getByRole('button', { name: 'Minuto 59', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Hora del recordatorio', exact: true })).toContainText('13:00');
+  await chooseTime(page, 'Hora del recordatorio', '09:07');
+  await page.getByRole('checkbox', { name: 'Elegir días', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Crear recordatorio', exact: true })).toBeDisabled();
+  await page.getByRole('checkbox', { name: 'Repetir los lunes', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Repetir los martes', exact: true }).click();
+  await page.getByRole('switch', { name: 'Avisos de este recordatorio', exact: true }).click();
+  await expect(page.getByLabel('Anticipación personalizada', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Elegir anticipación personalizada', exact: true }).click();
+  await page.getByRole('button', { name: 'Aumentar días', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Repetir los lunes', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Hora del recordatorio', exact: true })).toContainText('09:07');
+  await page.getByRole('button', { name: 'Elegir anticipación personalizada', exact: true }).click();
+  await page.getByRole('button', { name: 'Aumentar minutos', exact: true }).click();
+  await page.getByRole('button', { name: 'Añadir aviso personalizado', exact: true }).click();
+  await page.getByRole('button', { name: 'Crear recordatorio', exact: true }).click();
+  await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
+  await expect(page.getByText('Lunes · Martes', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Completar recordatorio de Leer', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Completar recordatorio de Leer', exact: true })).toHaveCount(1);
+  const saved = await backup(page);
+  expect(saved.backup.formatVersion).toBe(3);
+  expect(saved.state.entries).toHaveLength(1);
+  expect(getPlanning(saved.state).reminders[0]).toMatchObject({ dueAtMs: Date.parse('2026-10-19T14:07:00Z'), leadMinutes: [16, 0], recurrence: { weekdays: [1, 2], hour: 9, minute: 7, zone: 'America/Bogota' } });
+  const occurrences = deriveReminders(saved.state, now);
+  expect(occurrences.map(item => ({ status: item.status, due: item.dueAtMs }))).toEqual([
+    { status: 'done', due: Date.parse('2026-10-19T14:07:00Z') },
+    { status: 'pending', due: Date.parse('2026-10-20T14:07:00Z') },
+  ]);
+  await restore(page, saved.state);
+  await tab(page, 'Recordatorios');
+  await expect(page.getByRole('button', { name: 'Completar recordatorio de Leer', exact: true })).toHaveCount(1);
+  await page.getByRole('checkbox', { name: 'Recordatorios completados', exact: true }).click();
+  await expect(page.getByText('✓ Completado · registrado en la actividad', { exact: true })).toHaveCount(1);
+});
+
+test('daily recurrence keeps the next day pending after a single completion', async ({ page }) => {
+  await tab(page, 'Recordatorios');
+  await page.getByRole('button', { name: '+ Nuevo recordatorio', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Elegir actividad Leer', exact: true }).click();
+  await chooseTime(page, 'Hora del recordatorio', '16:41');
+  await page.getByRole('checkbox', { name: 'Todos los días', exact: true }).click();
+  await page.getByRole('button', { name: 'Crear recordatorio', exact: true }).click();
+  await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Completar recordatorio de Leer', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Completar recordatorio de Leer', exact: true })).toHaveCount(1);
+  const saved = await backup(page);
+  expect(saved.backup.formatVersion).toBe(3);
+  expect(saved.state.entries).toHaveLength(1);
+  expect(getPlanning(saved.state).reminders[0].recurrence?.weekdays).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  expect(deriveReminders(saved.state, now).map(item => ({ status: item.status, due: item.dueAtMs }))).toEqual([
+    { status: 'done', due: Date.parse('2026-10-14T21:41:00Z') },
+    { status: 'pending', due: Date.parse('2026-10-15T21:41:00Z') },
+  ]);
 });

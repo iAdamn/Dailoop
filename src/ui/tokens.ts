@@ -22,7 +22,6 @@ export function themeColors(setting: Theme, systemDark: boolean) {
     button: dark ? palette.lavender : palette.ink,
     buttonText: dark ? palette.ink : palette.base,
     surfaceEdge: dark ? alpha(palette.lavender, 0.3) : alpha(palette.lilac, 0.28),
-    surfaceShadow: dark ? alpha(palette.ink, 0.32) : alpha(palette.ink, 0.08),
   };
 }
 export type UIColors = ReturnType<typeof themeColors>;

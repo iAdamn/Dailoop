@@ -1,8 +1,10 @@
+import { useI18n } from '../i18n/react';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { Platform, View, type ViewProps } from 'react-native';
+import { Keyboard, Platform, View, type ViewProps } from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useMotionDisabled, useTabAppearance } from './motion';
+import { ModalVisibilityContext } from './modalState';
 
 export const TAB_ORDER = ['home', 'reminders', 'stats', 'settings'] as const;
 const ActiveTabContext = createContext(true);
@@ -13,6 +15,7 @@ export function TabButton({ onSelect, style, ...props }: Omit<ViewProps, 'style'
   onSelect(): void;
   style?: ViewProps['style'] | ((state: { pressed: boolean; focused: boolean }) => ViewProps['style']);
 }) {
+  const { t } = useI18n();
   const [focused, setFocused] = useState(false);
   const keyboard = Platform.OS === 'web' ? {
     focusable: true,
@@ -26,14 +29,19 @@ export function TabButton({ onSelect, style, ...props }: Omit<ViewProps, 'style'
     },
   } : {};
   return <View {...props} {...keyboard} accessible focusable
-    accessibilityActions={[{ name: 'activate', label: 'Cambiar pestaña' }]}
+    accessibilityActions={[{ name: 'activate', label: t("Cambiar pestaña") }]}
     onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'activate') onSelect(); }}
     onAccessibilityTap={onSelect}
     style={typeof style === 'function' ? style({ pressed: false, focused }) : style} />;
 }
 
+export const useActiveTab = () => useContext(ActiveTabContext);
+
 export function ActiveTabModal({ children }: { children: React.ReactNode }) {
-  return useContext(ActiveTabContext) ? children : null;
+  const active = useActiveTab();
+  const parentVisible = useContext(ModalVisibilityContext);
+  useEffect(() => { if (!active) Keyboard.dismiss(); }, [active]);
+  return <ModalVisibilityContext.Provider value={active && parentVisible}>{children}</ModalVisibilityContext.Provider>;
 }
 
 /** Retained screens follow the bar on the UI thread. Preview neighbours never
@@ -75,22 +83,6 @@ export function useTabPosition(index: number, dragging?: SharedValue<boolean>) {
     if (!dragging?.get()) position.set(reduced ? index : withTiming(index, { duration: 130 }));
   }, [index, position, dragging, reduced]);
   return position;
-}
-
-/** An optical bump travels over the actual icon and label, beneath the capsule.
- * Transform-only refraction avoids another blurred or duplicated text layer. */
-export function TabLens({ index, position, children, style }: {
-  index: number; position: SharedValue<number>; children: React.ReactNode; style?: ViewProps['style'];
-}) {
-  const reduced = useMotionDisabled();
-  const lens = useAnimatedStyle(() => {
-    const distance = index - position.get();
-    const influence = reduced ? 0 : Math.pow(Math.max(0, 1 - Math.abs(distance) / 0.9), 2);
-    return { transform: [{ translateX: -distance * influence * 3 }, { translateY: -influence },
-      { scaleX: 1 + influence * 0.12 }, { scaleY: 1 + influence * 0.19 }] };
-  });
-  return <Animated.View testID={`tab-lens-${index}`} pointerEvents="none" accessible={false}
-    style={[{ width: '100%', alignItems: 'center', gap: 5, overflow: 'visible' }, style, lens]}>{children}</Animated.View>;
 }
 
 /** Horizontal contact belongs only to the bottom capsule. Vertical motion and

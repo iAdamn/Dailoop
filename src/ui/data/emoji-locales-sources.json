@@ -1,0 +1,23 @@
+{
+  "cldr": "48.0.0",
+  "entries": 3953,
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-full/annotations/en/annotations.json",
+      "sha256": "f22083cb86dffb63a643d5bacb5d9899f82d2fa5d388ad4f3aed72184acef505"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json",
+      "sha256": "15c9457afa703a32dcc78d54626418a91e820fe0ddd67b7d491c4c4d9f5846ab"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-full/annotations/pt/annotations.json",
+      "sha256": "ebaa8e177bdafd49afe17e126274215565a420c53823f7082733b672a02c06cb"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-derived-full/annotationsDerived/pt/annotations.json",
+      "sha256": "23423f141587e22c8ee07a78f8cca45a59f11fca1cc5269f63dece4b02d4b8b6"
+    }
+  ],
+  "license": "../../../licenses/UNICODE-LICENSE.txt"
+}

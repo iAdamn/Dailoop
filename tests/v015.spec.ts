@@ -73,7 +73,11 @@ test('1–4 columns preserve identities, commit one intent and stay outside hist
     expect(Number(firstBox!.height.toFixed(3))).toBeGreaterThanOrEqual(48);
     expect(Number(firstBox!.width.toFixed(3))).toBeGreaterThanOrEqual(48);
     if (columns === 1) expect(secondBox!.y).toBeGreaterThan(firstBox!.y);
-    else { expect(Math.abs(secondBox!.y - firstBox!.y)).toBeLessThan(2); expect(secondBox!.x).toBeGreaterThan(firstBox!.x); }
+    else {
+      // Check the settled layout rather than sampling the tab/card pop midway.
+      await expect.poll(async()=>Math.abs((await second.boundingBox())!.y-(await first.boundingBox())!.y)).toBeLessThan(2);
+      expect(secondBox!.x).toBeGreaterThan(firstBox!.x);
+    }
     await page.screenshot({ path: test.info().outputPath(`density-${columns}.png`) });
   }
   await page.getByRole('button', { name: `Registrar ${publicName}`, exact: true }).click();

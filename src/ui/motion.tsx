@@ -3,6 +3,7 @@ import { AccessibilityInfo, Pressable, type PressableProps, type ViewStyle } fro
 import Animated, { cancelAnimation, Easing, runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { GlassLayer } from './material';
 import { palette } from './tokens';
+import { useModalInteractionDisabled } from './modalState';
 import { useInteractionFeedback, type FeedbackKind } from './feedback';
 
 const ReducedMotionContext = createContext(true);
@@ -22,14 +23,16 @@ export function MotionProvider({ children }: { children: React.ReactNode }) {
 /** Transform-only contact feedback; actions never wait for the release pop. */
 export function MotionPressable({ wrapperStyle, feedback = 'selection', ...props }: PressableProps & { wrapperStyle?: ViewStyle; feedback?: FeedbackKind | false }) {
   const respond = useInteractionFeedback();
+  const interactionDisabled = useModalInteractionDisabled();
+  const disabled = !!props.disabled || interactionDisabled;
   const reduced = useMotionDisabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  useEffect(() => { if (reduced) scale.set(1); }, [reduced, scale]);
-  return <Animated.View style={[wrapperStyle, animated]}><Pressable {...props}
-    onPress={event => { if (props.disabled) return; if (feedback) respond(feedback); props.onPress?.(event); }}
-    onPressIn={event => { if (!reduced && !props.disabled) scale.set(withTiming(0.96, { duration: 55, easing: Easing.out(Easing.cubic) })); props.onPressIn?.(event); }}
-    onPressOut={event => { scale.set(reduced || props.disabled ? 1 : withSequence(
+  useEffect(() => { if (reduced || disabled) scale.set(1); }, [reduced, disabled, scale]);
+  return <Animated.View style={[wrapperStyle, animated]}><Pressable {...props} disabled={disabled} aria-disabled={disabled} accessibilityState={{ ...props.accessibilityState, disabled }}
+    onPress={event => { if (disabled) return; if (feedback) respond(feedback); props.onPress?.(event); }}
+    onPressIn={event => { if (!reduced && !disabled) scale.set(withTiming(0.96, { duration: 55, easing: Easing.out(Easing.cubic) })); props.onPressIn?.(event); }}
+    onPressOut={event => { scale.set(reduced || disabled ? 1 : withSequence(
       withTiming(1.018, { duration: 85, easing: Easing.out(Easing.cubic) }),
       withTiming(1, { duration: 85, easing: Easing.inOut(Easing.quad) }),
     )); props.onPressOut?.(event); }}
@@ -52,7 +55,7 @@ export function MovingTabIndicator({ index, width, height, dark, position }: { i
   return <Animated.View pointerEvents="none" accessible={false} style={[{ position: 'absolute', left: 6, top: 8, width: cell - 2, height: Math.max(0, height - 18), borderRadius: 21 }, animated]}><GlassLayer radius={21} dark={dark} tint={palette.lavender} strength="control" /></Animated.View>;
 }
 
-export function useModalMotion(onClose: () => void, canClose = true) {
+export function useModalMotion(onClose: () => void, canClose = true, visible = true) {
   const reduced = useMotionDisabled();
   const progress = useSharedValue(reduced ? 1 : 0);
   // Content remains readable even when native attachment delays onShow. That
@@ -63,6 +66,7 @@ export function useModalMotion(onClose: () => void, canClose = true) {
   const [isClosing, setIsClosing] = useState(false);
   const pendingCloseAction = useRef<(() => void) | null>(null);
   const onCloseRef = useRef(onClose);
+  useEffect(() => { if (!visible) shown.current = false; }, [visible]);
   const finish = useCallback(() => {
     if (!closing.current) return;
     closing.current = false;

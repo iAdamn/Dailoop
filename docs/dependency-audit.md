@@ -1,5 +1,9 @@
 # Dependencias: auditoría y alcance
 
+## Estado actual · corrección del 15 de octubre de 2026
+
+Las entradas inferiores conservan inventarios históricos. El estado actual está en [AUDIT-FIXES-0.5.0.md](AUDIT-FIXES-0.5.0.md): SDK 57 alineado, uuid 11.1.1 y mitigaciones reproducibles de braces, forge (módulo y ambas UMD), sprintf (fuente/distribución) y decoder (CJS/alias y fallback lineal). npm audit completo mantiene **59 nodos, 51 high, 8 moderate, cero critical**, cuatro familias de avisos; no se falsificaron versiones para esconderlos. La aplicación/CLI siguen probados con controles legítimos y reproducciones adversariales. Ver `scripts/patch-tooling-security.mjs` y `tests/tooling-security.test.ts`; actualizar esas dependencias requiere revalidar hashes/parches.
+
 Ejecución local 2026-10-13 UTC: `npm audit --omit=dev --json`, evidencia `output/runtime-audit.json`. Resultado inicial: 64 nodos afectados (47 high, 17 moderate), correspondientes a cinco avisos directos y su propagación a dependientes. Es un resultado FAIL del inventario, no 64 vulnerabilidades demostradas en las pantallas de Dailoop. Expo incluye herramientas de compilación en su árbol de dependencias de producción.
 
 Revalidación final tras fijar el decoder corregido: **62 nodos afectados (45 high, 17 moderate, 0 critical)**, en `output/runtime-audit-final.json`. El inventario sigue en FAIL. `npm ls --depth=0` terminó sin conflictos de dependencias; Expo Doctor pasó 21/21. Estos diagnósticos verifican aspectos diferentes y no se sustituyen entre sí.
@@ -27,3 +31,7 @@ La preview permanece en localhost. La validación Android del paquete y de la co
 ## Revalidación local 0.5.0, 2026-10-14
 
 Tras añadir expo-notifications 57.0.22: `npm audit --omit=dev --json` continúa en **FAIL de inventario**, 64 nodos (47 high, 17 moderate, 0 critical), mismos cinco IDs 1119441, 1147955, 1240912, 1240992 y 1241202. Evidencia `output/verification/v0.5.0/runtime-audit-block2.json`. No aparece un aviso directo nuevo de Notifications. No se ejecutó audit fix ni se cambió de SDK para alterar el contador. Las clasificaciones de alcance anteriores y la deuda se conservan; las pruebas funcionales/compilación no las cierran.
+
+## Cuentas y sincronización 0.5.0 — 2026-10-15
+
+Se añade únicamente `expo-secure-store@57.0.4` al conjunto npm, en la matriz instalada de Expo 57. Credential Manager 1.3.0, credentials-play-services-auth 1.3.0 y googleid 1.1.1 son dependencias Maven del módulo Android local; no se añade SDK Firebase, Analytics ni Cloud Functions. La matriz `expo install --check` pasa. El inventario npm completo revalidado en `output/verification/v0.5.0/sync/npm-audit.json` conserva **57 nodos con avisos: 49 high, 8 moderate, 0 critical**; no constituye una certificación del runtime ni se presenta como limpio. No se ejecutó `audit fix --force`. La CLI Firebase 14.26.0 es tooling aislado bajo output, no dependencia de la aplicación ni credencial administrativa.

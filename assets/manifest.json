@@ -1,5 +1,5 @@
 {
-  "policy": "Originales preservados byte por byte. Sin derivados Android todavía.",
+  "policy": "Originales preservados byte por byte. Los derivados Android se generan por separado con scripts/generate-android-assets.mjs; no sustituyen estos originales.",
   "source": "../Dailoop-Handoff/assets/manifest.json",
   "assets": [
     {"file":"dailoop-brand-board.png","bytes":1430995,"sha256":"66e307c8e045b5839cd71f682aa4de50184ce3f81325e4b0c0590efe19683a7a","width":1448,"height":1086,"original":true},

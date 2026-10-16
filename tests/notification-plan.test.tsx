@@ -97,3 +97,51 @@ test('expired anticipations are skipped rather than emitted in a burst after reo
     '2026-10-16T16:00:00.000Z', '2026-10-16T16:30:00.000Z',
   ]);
 });
+
+
+test('weekly rules schedule every chosen weekday and elapsed lead in their saved zone without a finite horizon', () => {
+  const base = fixture();
+  const command: PlanningCommand = { type: 'createReminder', id: nextId(), completionEntryId: nextId(), activityId: base.activities[0].id,
+    dueAtMs: Date.parse('2026-10-19T14:00:00Z'), leadMinutes: [1440, 30], notifications: true,
+    recurrence: { weekdays: [1, 2], hour: 9, minute: 0, zone: 'America/Bogota' } };
+  const state = planning(base, command);
+  const before = JSON.stringify(state);
+  const plan = notificationPlan(state, NOW);
+  expect(plan.map(item => new Date(item.fireAtMs).toISOString())).toEqual([
+    '2026-10-18T14:00:00.000Z', '2026-10-19T13:30:00.000Z', '2026-10-19T14:00:00.000Z', '2026-10-20T13:30:00.000Z',
+  ]);
+  expect(plan.map(item => item.weekly?.weekday)).toEqual([2, 2, 3, 3]);
+  expect(plan.every(item => item.weekly?.zone === 'America/Bogota' && item.weekly.startAtMs === command.dueAtMs)).toBe(true);
+  const changed = execute(state, { type: 'updateSettings', changes: { zone: 'UTC' } }, context()).state;
+  expect(notificationPlan(changed, NOW)).toEqual(plan);
+  const distant = notificationPlan(state, Date.parse('2036-10-14T17:00:00Z'));
+  expect(distant).toHaveLength(4);
+  expect(distant.every(item => item.fireAtMs > Date.parse('2036-10-14T17:00:00Z'))).toBe(true);
+  expect(JSON.stringify(state)).toBe(before);
+});
+
+test('native weekly plans canonicalize valid zone spellings without rewriting the saved recurrence',()=>{
+  const base=fixture();
+  const command:PlanningCommand={type:'createReminder',id:nextId(),completionEntryId:nextId(),activityId:base.activities[0].id,
+    dueAtMs:Date.parse('2026-10-19T14:00:00Z'),leadMinutes:[0],notifications:true,
+    recurrence:{weekdays:[1],hour:9,minute:0,zone:'america/BOGOTA'}};
+  const state=planning(base,command),before=JSON.stringify(state);
+  expect(notificationPlan(state,NOW)[0].weekly?.zone).toBe('America/Bogota');
+  expect(JSON.stringify(state)).toBe(before);
+});
+
+test('completing a future recurring occurrence skips only that date; voiding re-enables it', () => {
+  const base = fixture();
+  const command: PlanningCommand = { type: 'createReminder', id: nextId(), completionEntryId: nextId(), activityId: base.activities[0].id,
+    dueAtMs: Date.parse('2026-10-19T14:00:00Z'), leadMinutes: [0], notifications: true,
+    recurrence: { weekdays: [1, 2], hour: 9, minute: 0, zone: 'America/Bogota' } };
+  const state = planning(base, command);
+  const entry = execute(state, { type: 'createEntry', activityId: command.activityId }, context());
+  const completed = planning(entry.state, { type: 'linkReminderOccurrence', reminderId: command.id, dueAtMs: command.dueAtMs, entryId: entry.result.entryId! });
+  const plan = notificationPlan(completed, NOW);
+  expect(plan.find(item => item.weekly?.weekday === 2)?.fireAtMs).toBe(Date.parse('2026-10-26T14:00:00Z'));
+  expect(plan.find(item => item.weekly?.weekday === 3)?.fireAtMs).toBe(Date.parse('2026-10-20T14:00:00Z'));
+  expect(plan.every(item => item.weekly?.skipDates.includes('2026-10-19'))).toBe(true);
+  const voided = execute(completed, { type: 'voidEntry', entryId: entry.result.entryId! }, context(NOW + 1)).state;
+  expect(notificationPlan(voided, NOW + 1).find(item => item.weekly?.weekday === 2)?.fireAtMs).toBe(command.dueAtMs);
+});

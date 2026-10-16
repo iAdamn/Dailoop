@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
-import type { FeedbackKind } from './feedback';
+import type { FeedbackChannels, FeedbackKind } from './feedback';
 import { feedbackSounds } from './feedbackSounds';
 
 export function useFeedbackDriver() {
@@ -36,13 +36,16 @@ export function useFeedbackDriver() {
       Object.values(sounds).forEach(sound => sound.remove());
     };
   }, []);
-  return useCallback((kind: FeedbackKind) => {
+  return useCallback((kind: FeedbackKind, channels: FeedbackChannels = { haptics: true, sound: true }) => {
     if (AppState.currentState !== 'active') return;
     const request = ++playbackRequest.current;
+    if (channels.haptics) {
     const vibration = Platform.OS === 'android'
       ? Haptics.performAndroidHapticsAsync(kind === 'action' ? Haptics.AndroidHaptics.Virtual_Key : Haptics.AndroidHaptics.Segment_Frequent_Tick)
       : Haptics.impactAsync(kind === 'action' ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Soft);
     void vibration.catch(() => undefined);
+    }
+    if (!channels.sound) { Object.values(players.current).forEach(sound => sound.pause()); return; }
     const sound = players.current[kind];
     // Expo Audio 57's Android isLoaded getter becomes false at STATE_ENDED.
     // The status correctly keeps an ended source loaded, so it can be rewound.

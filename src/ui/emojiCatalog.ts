@@ -1,3 +1,4 @@
+import { type AppLanguage, languageLocales } from '../i18n/core';
 import { graphemeLength } from '../domain/validation';
 
 export const emojiCategories = [
@@ -8,20 +9,25 @@ export const emojiCategories = [
   { name: 'Símbolos', icon: '❤️' }, { name: 'Banderas', icon: '🏳️' },
 ] as const;
 export interface EmojiChoice { emoji: string; name: string; search: string; category: number }
-let choices: EmojiChoice[] | undefined;
-export const normalizeEmojiSearch = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('es').trim();
+const choices: Partial<Record<AppLanguage, EmojiChoice[]>> = {};
+export const normalizeEmojiSearch = (text: string, language: AppLanguage = 'es') => text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase(languageLocales[language]).trim();
 
 /** Delay parsing/indexing until the picker is opened; keep tab startup light. */
-export function getEmojiChoices(): EmojiChoice[] {
-  if (!choices) {
+export function getEmojiChoices(language: AppLanguage = 'es'): EmojiChoice[] {
+  if (!choices[language]) {
     const catalog = require('./data/emojis.json') as { entries: [string, string, string, number][] };
-    choices = catalog.entries.map(([emoji, name, words, category]) => ({ emoji, name, category, search: normalizeEmojiSearch(`${emoji} ${name} ${words}`) }));
+    // Text-only CLDR annotations load with the picker, never during tab startup.
+    const localized = language === 'es' ? undefined : (require('./data/emoji-locales.json') as Record<'en' | 'pt', Record<string, [string, string]>>)[language];
+    choices[language] = catalog.entries.map(([emoji, spanishName, spanishWords, category]) => {
+      const [name, words] = localized?.[emoji.replace(/\uFE0F/g, '')] ?? [spanishName, spanishWords];
+      return { emoji, name, category, search: normalizeEmojiSearch(`${emoji} ${name} ${words}`, language) };
+    });
   }
-  return choices;
+  return choices[language]!;
 }
-export function findEmojis(query: string, category: number): EmojiChoice[] {
-  const terms = normalizeEmojiSearch(query).split(/\s+/).filter(Boolean);
-  return getEmojiChoices().filter(choice => terms.length ? terms.every(term => choice.search.includes(term)) : category < 0 || choice.category === category);
+export function findEmojis(query: string, category: number, language: AppLanguage = 'es'): EmojiChoice[] {
+  const terms = normalizeEmojiSearch(query, language).split(/\s+/).filter(Boolean);
+  return getEmojiChoices(language).filter(choice => terms.length ? terms.every(term => choice.search.includes(term)) : category < 0 || choice.category === category);
 }
 export function isSingleEmoji(value: string): boolean {
   const emoji = value.trim();

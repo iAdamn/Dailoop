@@ -92,6 +92,9 @@ async function exportBackup(page: Page) {
   const path = await download.path();
   expect(path).not.toBeNull();
   const text = await readFile(path!, 'utf8');
+  // Download completion can precede the export dialog's exit transition.
+  // Wait for the supported return path before clicking controls behind it.
+  await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
   return { path: path!, text, content: JSON.parse(text) };
 }
 
@@ -175,6 +178,9 @@ test('registra dos intenciones, persiste y conserva cuatro revisiones al corregi
   for (const label of ['1. Registrado', '2. Corregido', '3. Anulado', '4. Restaurado']) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
+  await page.getByText('4. Restaurado',{exact:true}).scrollIntoViewIfNeeded();
+  await expect(page.getByText('4. Restaurado',{exact:true})).toBeInViewport();
+  await page.screenshot({path:test.info().outputPath('audit-modal-virtualized-390.png')});
   await page.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
   await tab(page, 'Registro');
   await expect(page.getByText(/1 registro hoy · 1 actividad(?:es)? activas?/)).toBeVisible();

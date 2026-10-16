@@ -1,9 +1,29 @@
 import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import { isAppLanguage, type AppLanguage } from '../i18n/core';
+import { LIMITS } from '../domain/types';
 
 export type ActivityColumns = 1 | 2 | 3 | 4;
 export type HomeListMode = 'activities' | 'categories';
-export interface PresentationPreferences { activityColumns: ActivityColumns; homeListMode: HomeListMode }
+export interface SensoryPreferences { haptics: boolean; sounds: boolean; navigationSounds: boolean; confirmationSounds: boolean; notificationSounds: boolean }
+export interface ActivityLayout { order: string[]; pinned: string[] }
+export interface PresentationPreferences { activityColumns: ActivityColumns; homeListMode: HomeListMode; language?: AppLanguage; sensory?: SensoryPreferences; activityLayouts?: Record<string, ActivityLayout> }
+export const defaultSensoryPreferences: Readonly<SensoryPreferences> = { haptics: true, sounds: true, navigationSounds: true, confirmationSounds: true, notificationSounds: true };
+export function sensoryPreferences(value: Pick<PresentationPreferences, 'sensory'>): SensoryPreferences { return { ...defaultSensoryPreferences, ...value.sensory }; }
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_LAYOUT_IDS = LIMITS.entries;
+function cleanIds(value: unknown): string[] { return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && uuid.test(id)))].slice(0, MAX_LAYOUT_IDS) : []; }
+export function cleanActivityLayout(value: unknown): ActivityLayout {
+  const source = value && typeof value === 'object' ? value as Partial<ActivityLayout> : {};
+  return { order: cleanIds(source.order), pinned: cleanIds(source.pinned) };
+}
+function cleanSensory(value: unknown): SensoryPreferences {
+  const result = { ...defaultSensoryPreferences };
+  if (value && typeof value === 'object') for (const key of Object.keys(result) as (keyof SensoryPreferences)[]) {
+    const flag = (value as Record<string, unknown>)[key]; if (typeof flag === 'boolean') result[key] = flag;
+  }
+  return result;
+}
 export const defaultPresentationPreferences: PresentationPreferences = { activityColumns: 1, homeListMode: 'activities' };
 const storageKey = 'dailoop.presentation.v1';
 
@@ -11,9 +31,16 @@ export function parsePresentationPreferences(value: string | null): Presentation
   try {
     const parsed = JSON.parse(value || '{}');
     const columns: unknown = parsed?.activityColumns;
+    const layouts: Record<string, ActivityLayout> = {};
+    if (parsed?.activityLayouts && typeof parsed.activityLayouts === 'object' && !Array.isArray(parsed.activityLayouts)) {
+      for (const [id, value] of Object.entries(parsed.activityLayouts).filter(([id]) => uuid.test(id)).slice(-8)) layouts[id] = cleanActivityLayout(value);
+    }
     return {
       activityColumns: columns === 1 || columns === 2 || columns === 3 || columns === 4 ? columns : 1,
       homeListMode: parsed?.homeListMode === 'categories' ? 'categories' : 'activities',
+      ...(isAppLanguage(parsed?.language) ? { language: parsed.language } : {}),
+      ...(parsed?.sensory && typeof parsed.sensory === 'object' ? { sensory: cleanSensory(parsed.sensory) } : {}),
+      ...(Object.keys(layouts).length ? { activityLayouts: layouts } : {}),
     };
   } catch { /* Only presentation preferences may recover to defaults; never personal data. */ }
   return { ...defaultPresentationPreferences };
@@ -52,6 +79,7 @@ class PresentationPreferencesStore {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
   }
+  current() { return this.value; }
   load() {
     return this.serial(async () => {
       if (Platform.OS === 'web') {
@@ -77,9 +105,25 @@ class PresentationPreferencesStore {
     if (homeListMode !== 'activities' && homeListMode !== 'categories') return Promise.reject(new Error('Selecciona actividades o categorías.'));
     return this.set({ homeListMode });
   }
-  private set(changes: Partial<PresentationPreferences>) {
+  setLanguage(language: AppLanguage) {
+    if (!isAppLanguage(language)) return Promise.reject(new Error('Selecciona español, inglés o portugués.'));
+    return this.set({ language });
+  }
+  setSensory(changes: Partial<SensoryPreferences>) {
+    return this.set(current => ({ sensory: cleanSensory({ ...sensoryPreferences(current), ...changes }) }));
+  }
+  setActivityLayout(databaseId: string, layout: ActivityLayout) {
+    if (!uuid.test(databaseId)) return Promise.reject(new Error('Identificador de base no válido.'));
+    return this.set(current => {
+      const next = { ...current.activityLayouts };
+      delete next[databaseId]; next[databaseId] = cleanActivityLayout(layout);
+      const activityLayouts = Object.fromEntries(Object.entries(next).slice(-8));
+      return { activityLayouts };
+    });
+  }
+  private set(changes: Partial<PresentationPreferences> | ((current: PresentationPreferences) => Partial<PresentationPreferences>)) {
     return this.serial(async () => {
-      const value = { ...this.value, ...changes };
+      const value = { ...this.value, ...(typeof changes === 'function' ? changes(this.value) : changes) };
       const json = JSON.stringify(value);
       if (Platform.OS === 'web') localStorage.setItem(storageKey, json);
       else await (await this.db()).runAsync('INSERT INTO presentation_preferences(id,json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json', json);

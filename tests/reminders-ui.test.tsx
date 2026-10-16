@@ -15,6 +15,15 @@ jest.mock('react-native-gesture-handler', () => {
     GestureDetector: ({ children }: { children: React.ReactNode }) => children };
 });
 
+
+async function selectTime(value: string) {
+  const [hour, minute] = value.split(':');
+  await fireEvent.press(screen.getByRole('button', { name: 'Hora del recordatorio' }));
+  await fireEvent.press(screen.getByRole('button', { name: `Hora ${hour}` }));
+  await fireEvent.press(screen.getByRole('button', { name: `Minuto ${minute}` }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Elegir esta hora' }));
+}
+
 const NOW = Date.parse('2026-10-14T17:00:00Z');
 let serial = 0;
 const nextId = () => `55000000-0000-4000-9000-${String(++serial).padStart(12, '0')}`;
@@ -51,16 +60,18 @@ test('new reminder links an existing activity ID and saves several distinct lead
   expect(props.onSave).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Elegir actividad Café' }));
   await selectDate('2026-10-15');
-  await fireEvent.changeText(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)'), '09:30');
+  await selectTime('09:30');
   await fireEvent.press(screen.getByRole('switch', { name: 'Avisos de este recordatorio' }));
   for (const label of ['1 día antes', '3 horas antes', '1 hora antes', '30 min antes']) {
     await fireEvent.press(screen.getByRole('checkbox', { name: label }));
   }
-  await fireEvent.changeText(screen.getByLabelText('Anticipación personalizada'), '15');
-  await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso' }));
-  await fireEvent.changeText(screen.getByLabelText('Anticipación personalizada'), '30');
-  await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso' }));
-  expect(screen.getByText('! Este aviso ya está seleccionado.')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Elegir anticipación personalizada' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso personalizado' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Elegir anticipación personalizada' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Anticipación de 30 minutos' }));
+  expect(screen.getByText('Este aviso ya está añadido.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Añadir aviso personalizado' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Crear recordatorio' }));
   expect(props.onSave).toHaveBeenCalledTimes(1);
   expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -117,11 +128,11 @@ test('past and nonexistent local times are rejected and a repeated DST hour requ
   expect(screen.getByText('! Elige una fecha y hora futura para el recordatorio.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Crear recordatorio' })).toBeDisabled();
   await selectDate('2027-03-14');
-  await fireEvent.changeText(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)'), '02:30');
+  await selectTime('02:30');
   expect(screen.getByText('! Esta hora no existe en la zona elegida por un cambio de horario.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Crear recordatorio' })).toBeDisabled();
   await selectDate('2026-11-01');
-  await fireEvent.changeText(screen.getByLabelText('Hora del recordatorio (HH:mm, 24 horas)'), '01:30');
+  await selectTime('01:30');
   expect(screen.getByText('Esta hora ocurre dos veces')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Crear recordatorio' })).toBeDisabled();
   await fireEvent.press(screen.getByRole('checkbox', { name: '2026-11-01 01:30:00 -05:00' }));
@@ -137,7 +148,7 @@ test('the reminder list keeps completion explicit and then moves a real confirme
   expect(props.onSave).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: 'Completar recordatorio de Café' }));
   const reminder = getPlanning(state).reminders[0];
-  expect(props.onComplete).toHaveBeenCalledWith(reminder.id);
+  expect(props.onComplete).toHaveBeenCalledWith(reminder.id, reminder.dueAtMs);
   const confirmed = execute(state, { type: 'createEntry', id: reminder.completionEntryId, activityId: reminder.activityId }, {
     nowMs: NOW, operationId: nextId(), nextId,
   }).state;
@@ -183,14 +194,17 @@ test('custom hours become minutes and can be removed without changing other sele
   await render(<ReminderForm {...props} />);
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Elegir actividad Café' }));
   await fireEvent.press(screen.getByRole('switch', { name: 'Avisos de este recordatorio' }));
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Horas' }));
-  await fireEvent.changeText(screen.getByLabelText('Anticipación personalizada'), '2');
-  await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso' }));
+  const twoHours = async () => {
+    await fireEvent.press(screen.getByRole('button', { name: 'Elegir anticipación personalizada' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Anticipación de 1 hora' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Aumentar horas' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso personalizado' }));
+  };
+  await twoHours();
   expect(screen.getByRole('checkbox', { name: 'Quitar aviso 2 horas antes' })).toBeChecked();
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Quitar aviso 2 horas antes' }));
   expect(screen.queryByRole('checkbox', { name: 'Quitar aviso 2 horas antes' })).toBeNull();
-  await fireEvent.changeText(screen.getByLabelText('Anticipación personalizada'), '2');
-  await fireEvent.press(screen.getByRole('button', { name: 'Añadir aviso' }));
+  await twoHours();
   await fireEvent.press(screen.getByRole('button', { name: 'Crear recordatorio' }));
   expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({ leadMinutes: [120, 0] }), expect.any(String));
 });

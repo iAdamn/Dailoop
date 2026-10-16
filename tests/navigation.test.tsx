@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { ActiveTabModal, TabPanel } from '../src/ui/navigation';
 import DailoopUI, { type DailoopUIProps } from '../src/ui/DailoopUI';
 import { MotionProvider } from '../src/ui/motion';
+import { Field, ModalFrame } from '../src/ui/components';
 import { buildReport, computeStats, execute } from '../src/domain';
 import { createV015State, V015_NOW } from './fixtures/v015';
 
@@ -57,7 +58,11 @@ test('native hidden panels leave accessibility queries while each screen keeps i
   expect(screen.getByRole('checkbox', { name: 'Selección de estadísticas' })).toBeChecked();
 });
 
-test('a retained tab modal leaves the native tree while inactive and reappears with its draft', async () => {
+test('a retained tab modal excludes inactive inputs and restores the actual editable draft', async () => {
+  function Draft({ onClose }: { onClose(): void }) {
+    const [value, setValue] = useState('');
+    return <ModalFrame title="Borrador" onClose={onClose}><Field label="Mi borrador" value={value} onChangeText={setValue} /></ModalFrame>;
+  }
   function ModalTabs() {
     const [active, setActive] = useState(true);
     const [open, setOpen] = useState(false);
@@ -65,17 +70,18 @@ test('a retained tab modal leaves the native tree while inactive and reappears w
       <Pressable accessibilityRole="button" accessibilityLabel="Cambiar pantalla" onPress={() => setActive(!active)}><Text>Cambiar</Text></Pressable>
       <TabPanel active={active}>
         <Pressable accessibilityRole="button" accessibilityLabel="Abrir diálogo retenido" onPress={() => setOpen(true)}><Text>Abrir</Text></Pressable>
-        <ActiveTabModal>{open && <Modal visible><Text>BORRADOR_RETENIDO</Text></Modal>}</ActiveTabModal>
+        <ActiveTabModal>{open && <Draft onClose={() => setOpen(false)} />}</ActiveTabModal>
       </TabPanel>
     </View>;
   }
   await render(<ModalTabs />);
   await fireEvent.press(screen.getByRole('button', { name: 'Abrir diálogo retenido' }));
-  expect(screen.getByText('BORRADOR_RETENIDO')).toBeVisible();
+  await fireEvent.changeText(screen.getByLabelText('Mi borrador'), 'Contenido editado');
+  expect(screen.getByLabelText('Mi borrador')).toHaveDisplayValue('Contenido editado');
   await fireEvent.press(screen.getByRole('button', { name: 'Cambiar pantalla' }));
-  expect(screen.queryByText('BORRADOR_RETENIDO', { includeHiddenElements: true })).toBeNull();
+  expect(screen.queryByLabelText('Mi borrador', { includeHiddenElements: true })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Cambiar pantalla' }));
-  expect(screen.getByText('BORRADOR_RETENIDO')).toBeVisible();
+  expect(screen.getByLabelText('Mi borrador')).toHaveDisplayValue('Contenido editado');
 });
 
 test('the root UI reuses statistics across navigation and same-day clock ticks, then invalidates after confirmed data', async () => {

@@ -7,7 +7,7 @@ const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.resolve(project,process.env.DAILOOP_EXPORT_ROOT??'dist');
 const port=Number(process.env.DAILOOP_EXPORT_PORT??8795);
 if(root!==path.join(project,'dist')&&!root.startsWith(path.join(project,'output','verification')+path.sep))throw new Error('El export debe estar en dist o output/verification del proyecto propio.');
-if(port!==8793&&port!==8795)throw new Error('Usa exclusivamente los puertos propios 8793 o 8795.');
+if(port!==8793&&port!==8795&&port!==8797)throw new Error('Usa exclusivamente los puertos propios 8793, 8795 o 8797.');
 await stat(path.join(root,'index.html'));
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.wasm':'application/wasm','.png':'image/png','.ico':'image/x-icon','.json':'application/json','.css':'text/css','.ttf':'font/ttf','.otf':'font/otf','.woff2':'font/woff2'};
 const server=http.createServer(async(req,res)=>{

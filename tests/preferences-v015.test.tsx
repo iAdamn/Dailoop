@@ -86,3 +86,34 @@ test('old preferences gain activities mode; folder mode and columns survive queu
   expect(await (await freshStore()).presentationPreferences.load()).toEqual({ activityColumns: 3, homeListMode: 'categories' });
   await expect(store.setHomeListMode('invalid' as 'categories')).rejects.toThrow('Selecciona');
 });
+
+test('language commits only after storage, survives restart and preserves existing presentation choices',async()=>{
+  const preferences=await freshStore();
+  for(const language of ['es','en','pt'])expect(preferences.parsePresentationPreferences(JSON.stringify({activityColumns:3,homeListMode:'categories',language}))).toEqual({activityColumns:3,homeListMode:'categories',language});
+  for(const language of ['fr','pt-PT',null,{},42])expect(preferences.parsePresentationPreferences(JSON.stringify({activityColumns:3,language}))).toEqual({activityColumns:3,homeListMode:'activities'});
+  mockPersisted='{"activityColumns":4,"homeListMode":"categories"}';
+  const store=preferences.presentationPreferences;await store.load();
+  let release!:()=>void;let entered!:()=>void;
+  const started=new Promise<void>(resolve=>{entered=resolve;});
+  const commit=new Promise<void>(resolve=>{release=resolve;});
+  mockWrite.mockImplementationOnce(async()=>{entered();await commit;});
+  const published:PresentationPreferences[]=[];store.subscribe(value=>published.push(value));
+  const pending=store.setLanguage('en');await started;
+  expect(published).toEqual([]);expect(JSON.parse(mockPersisted!)).not.toHaveProperty('language');
+  release();await pending;
+  expect(published).toEqual([{activityColumns:4,homeListMode:'categories',language:'en'}]);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({activityColumns:4,homeListMode:'categories',language:'en'});
+});
+
+test('language save failure retains the prior language and later queued changes keep it',async()=>{
+  mockPersisted='{"activityColumns":2,"homeListMode":"activities","language":"pt"}';
+  const store=(await freshStore()).presentationPreferences;await store.load();
+  mockWrite.mockRejectedValueOnce(new Error('SQLite full'));
+  await expect(store.setLanguage('en')).rejects.toThrow('SQLite full');
+  expect(JSON.parse(mockPersisted!)).toEqual({activityColumns:2,homeListMode:'activities',language:'pt'});
+  await store.setColumns(3);
+  expect(await (await freshStore()).presentationPreferences.load()).toEqual({activityColumns:3,homeListMode:'activities',language:'pt'});
+  const writes=mockWrite.mock.calls.length;
+  await expect(store.setLanguage('fr' as 'es')).rejects.toThrow('Selecciona');
+  expect(mockWrite).toHaveBeenCalledTimes(writes);
+});

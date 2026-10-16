@@ -1,5 +1,11 @@
 # Matriz de compatibilidad — fase 0
 
+## Estado actual tras la auditoría, 15 de octubre de 2026
+
+La matriz histórica de abajo conserva la investigación inicial. Los pins actuales de package.json/package-lock.json alinean expo 57.0.30, @expo/metro-runtime 57.0.17, expo-asset 57.0.20, expo-constants 57.0.22, expo-linking 57.0.13, expo-notifications 57.0.23 y expo-router 57.0.28. `expo install --check` pasa. Se mantiene React/RN/SDK 57, SQLite y la identidad Android; no se fuerza una migración de framework para alterar el inventario.
+
+Audio, blur y notifications están en `expo.autolinking.android.buildFromSource`: sus parches de código no deben quedar fuera por los AAR precompilados. El módulo propio DailoopBackup se registra en la biblioteca local dailoop-glass. Kotlin/Java de la aplicación y estas bibliotecas compilan en configuración release, sin empaquetar APK. Véase AUDIT-FIXES-0.5.0.md para pruebas y límites de aceptación.
+
 Fecha de consulta: 12 de octubre de 2026, America/Bogota. Investigación por el subagente de dependencias; integración y lockfile a cargo del coordinador. Las tablas conservan las candidatas de investigación y sus diferencias se resuelven explícitamente abajo. La combinación final está instalada y verificada; no se generó APK.
 
 ## Decisión
@@ -121,3 +127,12 @@ Resultados finales del coordinador: `expo install --check` PASS; **Expo Doctor 2
 ## Adición local 0.5.0 — 2026-10-14
 
 Se instaló `expo-notifications@57.0.22` con la matriz fijada de SDK 57 (`expo install --check` PASS). Autolinking y compilación Kotlin release verifican el módulo local `dailoop-glass` junto a Notifications. Sin librería gráfica adicional: Android 13+ usa AGSL de plataforma y Web SVG. El lockfile conserva las versiones anteriores de RN/Reanimated/Worklets. Ver RECORDATORIOS-RACHAS-0.5.0.md para permisos y límites nativos.
+
+
+Seguimiento de repetición 0.5.0: Notifications se compila desde fuente mediante expo.autolinking.android.buildFromSource para incluir el trigger zonificado, aplicado reproduciblemente desde scripts. El helper usa Calendar/TimeZone API 24, sin java.time ni desugaring nuevo. Su regresión JVM requiere el JDK 17 documentado para Android. El control online ahora recomienda siete microactualizaciones de Expo; se mantienen las versiones fijadas y se registra el FAIL de inventario, separado de las pruebas funcionales/compilación PASS y del mapa offline instalado.
+
+## Seguimiento de cuentas y nube
+
+Se añade `expo-secure-store@57.0.4`, alineado con la matriz instalada de Expo 57. Identidad Android usa Credential Manager 1.3.0, credentials-play-services-auth 1.3.0 y googleid 1.1.1 desde repositorios oficiales en el módulo local existente. Se verifican Kotlin release y bundle Hermes sin APK. Android conserva minSdk 24, paquete `local.dailoop.personal`, firma y `allowBackup=false`. Se habilitan exclusivamente INTERNET/ACCESS_NETWORK_STATE para esta función; cámara, ubicación, micrófono y demás bloqueos previos permanecen.
+
+Auth y Firestore usan REST HTTPS, sin SDK Firebase, Analytics, Cloud Functions ni servicio permanente. Google Web redirige la página completa y valida un estado aleatorio de un solo uso, retirando el token del fragmento antes del primer render de la aplicación. La preview SQLite exige COOP/COEP y Web Locks; la sesión Chrome controlada no dispone de aislamiento, por lo que allí se verificó sólo Google real y lectura Firestore mediante una página de prueba independiente. La aplicación completa se verificó en Edge aislado con SQLite real y respuestas de proveedores simuladas. No confundir ambos tipos de evidencia ni la compilación con aceptación en teléfono.

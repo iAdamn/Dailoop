@@ -1,3 +1,4 @@
+import { chooseTime } from './browserTime';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
@@ -12,18 +13,18 @@ test('create an activity inside a reminder, retain its calendar/time draft and s
   await page.goto('/#tab=reminders');
   await page.getByRole('button', { name: '+ Nuevo recordatorio', exact: true }).click();
   await chooseDate(page, 'Fecha del recordatorio', '2026-10-16');
-  await page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true }).fill('17:35');
+  await chooseTime(page, 'Hora del recordatorio', '17:35');
   await page.getByRole('button', { name: 'Crear una actividad para este recordatorio', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Una nueva actividad', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Fecha del recordatorio', exact: true })).toContainText('16 de octubre de 2026');
-  await expect(page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true })).toHaveValue('17:35');
+  await expect(page.getByRole('button', { name: 'Hora del recordatorio', exact: true })).toContainText('17:35');
   await page.getByRole('button', { name: 'Crear una actividad para este recordatorio', exact: true }).click();
   await page.getByLabel('Nombre de la actividad', { exact: true }).fill('Paseo');
   await page.getByRole('button', { name: 'Crear actividad', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Elegir actividad Paseo', exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: 'Fecha del recordatorio', exact: true })).toContainText('16 de octubre de 2026');
-  await expect(page.getByLabel('Hora del recordatorio (HH:mm, 24 horas)', { exact: true })).toHaveValue('17:35');
+  await expect(page.getByRole('button', { name: 'Hora del recordatorio', exact: true })).toContainText('17:35');
   await page.getByRole('button', { name: 'Crear recordatorio', exact: true }).click();
   await expect(page.getByTestId('dialog-motion')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Completar recordatorio de Paseo', exact: true })).toBeVisible();

@@ -6,13 +6,13 @@ import type { PlannedNotification } from '../src/infrastructure/notificationPlan
 
 // This boundary fake exercises permission/queue/lifecycle contracts. It does
 // not represent Android delivery, process death, boot or hardware reception.
-type Scheduled = { identifier: string; content: { data?: Record<string, unknown> } };
+type Scheduled = { identifier: string; content: { data?: Record<string, unknown> }; trigger?: Notifications.NotificationTriggerInput };
 const mockScheduled = new Map<string, Scheduled>();
 let mockReceive: ((response: Notifications.NotificationResponse) => void) | undefined;
 const mockRemoveResponse = jest.fn();
 jest.mock('expo-notifications', () => ({
-  AndroidImportance: { DEFAULT: 3 }, AndroidNotificationVisibility: { PRIVATE: 0 }, SchedulableTriggerInputTypes: { DATE: 'date' },
-  setNotificationHandler: jest.fn(), setNotificationChannelAsync: jest.fn(async () => undefined),
+  AndroidImportance: { DEFAULT: 3 }, AndroidNotificationVisibility: { PRIVATE: 0 }, SchedulableTriggerInputTypes: { DATE: 'date', WEEKLY: 'weekly' },
+  setNotificationCategoryAsync: jest.fn(async () => undefined), setNotificationHandler: jest.fn(), setNotificationChannelAsync: jest.fn(async () => undefined),
   getPermissionsAsync: jest.fn(), requestPermissionsAsync: jest.fn(),
   getAllScheduledNotificationsAsync: jest.fn(), cancelScheduledNotificationAsync: jest.fn(), scheduleNotificationAsync: jest.fn(),
   getLastNotificationResponseAsync: jest.fn(async () => null), clearLastNotificationResponseAsync: jest.fn(async () => undefined),
@@ -54,7 +54,7 @@ beforeEach(() => {
   jest.mocked(Notifications.cancelScheduledNotificationAsync).mockImplementation(async id => { mockScheduled.delete(id); });
   jest.mocked(Notifications.scheduleNotificationAsync).mockImplementation(async request => {
     if (!request.identifier) throw new Error('Test requires explicit identifier');
-    mockScheduled.set(request.identifier, { identifier: request.identifier, content: request.content });
+    mockScheduled.set(request.identifier, { identifier: request.identifier, content: request.content, trigger: request.trigger });
     return request.identifier;
   });
 });
@@ -117,6 +117,8 @@ test('an unchanged plan is stable; changing one item replaces only that request'
   expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(3);
   expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
   expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(first.identifier);
+  expect(mockScheduled.get(first.identifier)?.trigger).toEqual({type:'date',date:new Date(NOW+180_000),channelId:'dailoop-reminders-sound-v070'});
+  expect(mockScheduled.get(second.identifier)?.trigger).toEqual({type:'date',date:new Date(NOW+120_000),channelId:'dailoop-reminders-sound-v070'});
 });
 
 test('removing a plan cancels owned identifiers across databases without touching unrelated libraries', async () => {
@@ -207,4 +209,19 @@ test('successful reconciliation also clears an earlier error to denied when OS p
   expect(result.current.status).toBe('denied');
   expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+});
+
+
+test('recurring plans forward the zone, elapsed lead, start boundary and skipped occurrence dates to the native trigger', async () => {
+  const item: PlannedNotification = { ...planned('w:one:1:30'), weekly: { weekday: 2, hour: 9, minute: 15, zone: 'America/Bogota', leadMinutes: 30,
+    startAtMs: NOW + 60_000, skipDates: ['2026-10-19'] } };
+  const { result } = await renderHook(() => useLocalNotifications(jest.fn()));
+  await act(async () => { await result.current.synchronize([item]); });
+  expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({ identifier: item.identifier,
+    trigger: { type: 'weekly', weekday: 2, hour: 9, minute: 15, channelId: 'dailoop-reminders-sound-v070', dailoopZone: 'America/Bogota',
+      dailoopLeadMinutes: 30, dailoopStartAtMs: NOW + 60_000, dailoopSkipDates: ['2026-10-19'] } }));
+  await act(async () => { await result.current.synchronize([item]); });
+  expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+  await act(async () => { await result.current.synchronize([]); });
+  expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(item.identifier);
 });

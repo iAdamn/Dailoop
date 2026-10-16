@@ -44,13 +44,22 @@ test.afterEach(async ({ page }) => {
 });
 
 test('history search, activity selection and expanded filters survive leaving and returning', async ({ page }) => {
+  const expectFilteredRows=async()=>{
+    await expect(page.getByText('10 registros · Todo el historial · America/Bogota',{exact:true})).toBeVisible();
+    // A virtualized list renders its visible window. Reveal the remaining rows
+    // before counting, then restore the filter position for the return checks.
+    const list=page.locator('[data-testid="entry-list"]:visible');
+    await list.evaluate(element=>{element.scrollTop=element.scrollHeight;});
+    await expect(page.getByRole('button',{name:new RegExp(`^${publicName}, .*registrado$`)})).toHaveCount(10);
+    await list.evaluate(element=>{element.scrollTop=0;});
+  };
   await tab(page, 'Historial');
   await page.getByRole('textbox', { name: 'Buscar una actividad', exact: true }).fill('QA 002');
   await page.getByRole('button', { name: 'Filtrar historial', exact: true }).click();
   await page.getByRole('switch', { name: 'Incluir actividades archivadas', exact: true }).click();
   await page.getByRole('switch', { name: 'Mostrar registros anulados', exact: true }).click();
   await chip(page, `📖 ${publicName}`).click();
-  await expect(page.getByRole('button', { name: new RegExp(`^${publicName}, .*registrado$`) })).toHaveCount(10);
+  await expectFilteredRows();
   await tab(page, 'Registro');
   await tab(page, 'Estadísticas');
   await tab(page, 'Historial');
@@ -59,7 +68,7 @@ test('history search, activity selection and expanded filters survive leaving an
   await expect(page.getByRole('switch', { name: 'Incluir actividades archivadas', exact: true })).toBeChecked();
   await expect(page.getByRole('switch', { name: 'Mostrar registros anulados', exact: true })).toBeChecked();
   await expect(chip(page, `📖 ${publicName}`)).toBeChecked();
-  await expect(page.getByRole('button', { name: new RegExp(`^${publicName}, .*registrado$`) })).toHaveCount(10);
+  await expectFilteredRows();
 });
 
 test('statistics period and activity selection survive another tab and report back navigation', async ({ page }) => {
@@ -94,6 +103,8 @@ test('confirmed records update retained history and statistics without duplicati
   }
   await tab(page, 'Historial');
   await expect(page.getByRole('textbox', { name: 'Buscar una actividad', exact: true })).toHaveValue('QA 002');
+  await expect(page.getByText('12 registros · Todo el historial · America/Bogota',{exact:true})).toBeVisible();
+  await page.locator('[data-testid="entry-list"]:visible').evaluate(element=>{element.scrollTop=element.scrollHeight;});
   await expect(page.getByRole('button', { name: new RegExp(`^${publicName}, .*registrado$`) })).toHaveCount(12);
   await tab(page, 'Estadísticas');
   await expect(chip(page, 'Día')).toBeChecked();

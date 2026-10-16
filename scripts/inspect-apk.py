@@ -289,9 +289,17 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
             and int_value(xml_attribute(child, "protectionLevel")) == 2
             for child in matching_children(manifest, "permission"))
         # expo-audio uses Android's normal audio-settings permission for local playback.
-        # Local optional notifications survive reboot; no push/network/badges.
+        # Local optional notifications survive reboot; no push/badges.
         allowed = {"android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.POST_NOTIFICATIONS",
                    "android.permission.RECEIVE_BOOT_COMPLETED"}
+        cloud_network = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"}
+        cloud_enabled = cloud_network.issubset(set(config["android"].get("permissions", [])))
+        if cloud_enabled:
+            allowed.update(cloud_network)
+        widget_permissions = {"android.permission.FOREGROUND_SERVICE", "android.permission.WAKE_LOCK"}
+        widget_enabled = widget_permissions.issubset(set(config["android"].get("permissions", [])))
+        if widget_enabled:
+            allowed.update(widget_permissions)
         if declared_signature:
             allowed.add(custom_permission)
         unexpected = sorted(set(requested) - allowed)
@@ -301,6 +309,20 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
         notification_permissions = {"android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"}
         check("permissions.localNotifications", notification_permissions.issubset(requested),
               {"required": sorted(notification_permissions), "requested": requested})
+        if cloud_enabled:
+            check("permissions.optionalCloudSync", cloud_network.issubset(requested),
+                  {"required": sorted(cloud_network), "requested": requested})
+        if widget_enabled:
+            check("permissions.widget", widget_permissions.issubset(requested), {"requested": requested})
+            for tag, name, exported in (("receiver", "DailoopWidgetProvider", 1),
+                                        ("receiver", "DailoopWidgetActionReceiver", 0),
+                                        ("receiver", "DailoopWidgetPinReceiver", 0),
+                                        ("activity", "DailoopWidgetConfigActivity", 1),
+                                        ("service", "DailoopWidgetService", 0)):
+                nodes = [node for node in matching_children(app, tag) if (string_value(xml_attribute(node, "name")) or "").endswith("." + name)]
+                check("widget." + name, len(nodes) == 1 and int_value(xml_attribute(nodes[0], "exported")) is not None and (int_value(xml_attribute(nodes[0], "exported")) != 0) == bool(exported), nodes)
+            service_nodes = [node for node in matching_children(app, "service") if (string_value(xml_attribute(node, "name")) or "").endswith(".DailoopWidgetService")]
+            check("widget.shortService", len(service_nodes) == 1 and int_value(xml_attribute(service_nodes[0], "foregroundServiceType")) == 2048, service_nodes)
         check("manifest.hardwareAccelerated", int_value(xml_attribute(app, "hardwareAccelerated")) not in (None, 0),
               xml_attribute(app, "hardwareAccelerated"))
         receivers = [node for node in matching_children(app, "receiver")
@@ -365,6 +387,10 @@ def inspect(apk: Path, sdk: Path, output: Path, report: dict, expected_abis: set
 
     with zipfile.ZipFile(apk, "r") as archive:
         entries = archive.infolist()
+        if widget_enabled:
+            dex = b''.join(archive.read(entry) for entry in entries if re.fullmatch(r"classes\d*\.dex", entry.filename))
+            for marker in (b'DailoopWidgets', b'DailoopNativeActions', b'dailoop.v070.'):
+                check("widget.dex." + marker.decode('ascii'), marker in dex, "Native bridge, headless task and patched Expo action routing must be packaged")
         counts = Counter(entry.filename for entry in entries)
         check("zip.uniqueEntries", all(count == 1 for count in counts.values()),
               [name for name, count in counts.items() if count > 1])
