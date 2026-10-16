@@ -133,21 +133,26 @@ function validateChain(chain: { id: string; revisionNo: number; previousRevision
   });
 }
 function validateDigest(digest: unknown): asserts digest is string { invariant(typeof digest === 'string' && /^[0-9a-f]{64}$/.test(digest), 'invalid_digest', 'El checksum SHA-256 no es válido.'); }
+export function backupFormatVersion(state: DomainState): 1 | 2 | 3 | 4 {
+  if (!Object.hasOwn(state, 'planning')) return 1;
+  if (state.planning!.events.some(({ command }) => command.type === 'snoozeReminderOccurrence' || command.type === 'skipReminderOccurrence')) return 4;
+  return state.planning!.events.some(({ command }) => command.type === 'linkReminderOccurrence' || (command.type === 'createReminder' && Object.hasOwn(command, 'recurrence')) || (command.type === 'updateReminder' && Object.hasOwn(command.changes, 'recurrence'))) ? 3 : 2;
+}
 export async function exportBackup(state: DomainState, options: BackupOptions, digest: Digest): Promise<string> {
   validateState(state); assertId(options.backupId); assertTime(options.exportedAtMs); textLimit(options.appVersion, 'La versión', 80, 8192, true);
   const canonical = canonicalize(state); const checksum = await digest(canonical); validateDigest(checksum);
-  const backup: BackupFile = { format: 'dailoop-backup', formatVersion: Object.hasOwn(state, 'planning') ? 2 : 1, schemaVersion: 1, backupId: options.backupId, databaseId: state.meta.databaseId, exportedAt: new Date(options.exportedAtMs).toISOString(), appVersion: options.appVersion, scope: 'full', counts: backupCounts(state), payload: JSON.parse(canonical) as DomainState, digest: checksum };
+  const backup: BackupFile = { format: 'dailoop-backup', formatVersion: backupFormatVersion(state), schemaVersion: 1, backupId: options.backupId, databaseId: state.meta.databaseId, exportedAt: new Date(options.exportedAtMs).toISOString(), appVersion: options.appVersion, scope: 'full', counts: backupCounts(state), payload: JSON.parse(canonical) as DomainState, digest: checksum };
   const text = JSON.stringify(backup, null, 2) + '\n'; invariant(utf8Length(text) <= LIMITS.backupBytes, 'backup_too_large', 'Esta copia supera el límite restaurable. No se generó un archivo incompleto.'); return text;
 }
 export async function parseBackup(text: string, digest: Digest): Promise<ParsedBackup> {
   invariant(typeof text === 'string' && utf8Length(text) <= LIMITS.backupBytes, 'backup_too_large', 'El archivo supera el límite admitido.');
   let raw: unknown; try { raw = JSON.parse(text); } catch { invariant(false, 'invalid_json', 'El archivo no contiene JSON válido.'); }
   record(raw, ['format', 'formatVersion', 'schemaVersion', 'backupId', 'databaseId', 'exportedAt', 'appVersion', 'scope', 'counts', 'payload', 'digest'], 'backup');
-  invariant(raw.format === 'dailoop-backup' && raw.scope === 'full', 'invalid_format', 'Selecciona un backup completo de Dailoop.'); invariant((raw.formatVersion === 1 || raw.formatVersion === 2) && raw.schemaVersion === 1, 'unsupported_version', 'Esta versión de backup no es compatible.'); assertId(raw.backupId); assertId(raw.databaseId); validateDigest(raw.digest);
+  invariant(raw.format === 'dailoop-backup' && raw.scope === 'full', 'invalid_format', 'Selecciona un backup completo de Dailoop.'); invariant((raw.formatVersion === 1 || raw.formatVersion === 2 || raw.formatVersion === 3 || raw.formatVersion === 4) && raw.schemaVersion === 1, 'unsupported_version', 'Esta versión de backup no es compatible.'); assertId(raw.backupId); assertId(raw.databaseId); validateDigest(raw.digest);
   textLimit(raw.appVersion, 'La versión', 80, 8192, true);
   invariant(typeof raw.exportedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw.exportedAt) && Number.isFinite(Date.parse(raw.exportedAt)) && new Date(raw.exportedAt).toISOString() === raw.exportedAt, 'invalid_time', 'Fecha de exportación no válida.');
   const checksum = await digest(canonicalize(raw.payload)); validateDigest(checksum); invariant(checksum === raw.digest, 'checksum_mismatch', 'El archivo está dañado: checksum incorrecto.');
-  const state = validateState(raw.payload); invariant((raw.formatVersion === 2) === Object.hasOwn(state, 'planning'), 'invalid_format', 'La versión del backup no corresponde a su planificación.'); invariant(state.meta.databaseId === raw.databaseId, 'database_mismatch', 'La identidad del dataset no coincide.'); record(raw.counts, ['activities', 'activityRevisions', 'entries', 'entryRevisions', 'operations'], 'conteos');
+  const state = validateState(raw.payload); invariant(raw.formatVersion === backupFormatVersion(state), 'invalid_format', 'La versión del backup no corresponde a su planificación.'); invariant(state.meta.databaseId === raw.databaseId, 'database_mismatch', 'La identidad del dataset no coincide.'); record(raw.counts, ['activities', 'activityRevisions', 'entries', 'entryRevisions', 'operations'], 'conteos');
   const counts = backupCounts(state); invariant(Object.entries(counts).every(([key, value]) => raw.counts && (raw.counts as unknown as Record<string, unknown>)[key] === value), 'count_mismatch', 'Los conteos del archivo no coinciden.');
   const all = effectiveEntries(state, { includeVoided: true });
   return { backup: raw as unknown as BackupFile, state, summary: { ...counts, databaseId: state.meta.databaseId, backupId: raw.backupId, exportedAt: raw.exportedAt, firstOccurredAtMs: all.length ? all[0].revision.occurredAtMs : null, lastOccurredAtMs: all.length ? all[all.length - 1].revision.occurredAtMs : null } };

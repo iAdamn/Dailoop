@@ -65,6 +65,32 @@ function storeModule(database:ReturnType<typeof realSqlite>){
   return loadModule('src/infrastructure/store.ts',{'react-native':{Platform:{OS:'web'}},'expo-sqlite':database.sqlite,'../domain':domain,'./schema':{migrate},'./crypto':{digest,uuid:randomUUID}}) as {DailoopStore:typeof DailoopStore};
 }
 
+test('capacity rejection leaves SQLite unchanged and permits reopening the last valid dataset',async()=>{
+  const database=realSqlite();
+  const mutableLimits=domain.LIMITS as {entries:number};
+  const originalLimit=mutableLimits.entries;
+  try{
+    const {DailoopStore:Store}=storeModule(database);
+    let store=await Store.open('personal','America/Bogota',()=>now);
+    const created=await store.dispatch({type:'createActivity',name:'Capacidad',emoji:'🌱',color:'#8FD8FF'});
+    const activityId=created.state.activities[0].id;
+    await store.dispatch({type:'createEntry',activityId,occurredAtMs:now});
+    const before=await store.snapshot();
+    mutableLimits.entries=1;
+    await assert.rejects(store.dispatch({type:'createEntry',activityId,occurredAtMs:now}),/límite/i);
+    assert.equal(await store.snapshot(),before);
+    database.editActive(raw=>{
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entries').get()!.n,1);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM operations').get()!.n,2);
+    });
+    await store.close();
+    store=await Store.open('personal','America/Bogota',()=>now);
+    assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(before));
+    domain.validateState(await store.snapshot());
+    await store.close();
+  }finally{mutableLimits.entries=originalLimit;database.cleanup();}
+});
+
 test('failed ready and rollback markers freeze queued writes, preserve both files, and recover the durable candidate on relaunch',async()=>{
   const database=realSqlite();
   try{
@@ -425,5 +451,103 @@ test('opening a complete physical v1 dataset migrates it to v2 while preserving 
     });
     const backup=await upgraded.inspect(await upgraded.backup());
     assert.equal(backup.backup.formatVersion,1);assert.equal(Object.hasOwn(backup.state,'planning'),false);await upgraded.close();
+  }finally{database.cleanup();}
+});
+
+async function recurringCommand(store:DailoopStore):Promise<domain.PlanningCommand & {type:'createReminder'}>{
+  const activity=await store.dispatch({type:'createActivity',name:'Lectura recurrente',emoji:'📚',color:'#DCCFFF'});
+  const command:domain.PlanningCommand & {type:'createReminder'}={
+    type:'createReminder',id:randomUUID(),activityId:activity.result.activityId!,dueAtMs:now+3_600_000,
+    completionEntryId:randomUUID(),leadMinutes:[30,0],notifications:true,
+    recurrence:{weekdays:[1,2],hour:13,minute:0,zone:'America/Bogota'},
+  };
+  await store.dispatchPlanning(command);return command;
+}
+
+test('recurring completion requires an exact occurrence and concurrent retries cannot advance to the next day',async()=>{
+  const database=realSqlite();let clock=now;
+  try{
+    const {DailoopStore:Store}=storeModule(database),store=await Store.open('personal','America/Bogota',()=>clock);
+    const command=await recurringCommand(store);const operationId=randomUUID();
+    await assert.rejects(store.completeReminder(command.id,randomUUID()),/ocasión/);
+    await assert.rejects(store.completeReminder(command.id,randomUUID(),command.dueAtMs+60_000),/disponible/);
+    const [first,retry,secondTap]=await Promise.all([
+      store.completeReminder(command.id,operationId,command.dueAtMs),
+      store.completeReminder(command.id,operationId,command.dueAtMs),
+      store.completeReminder(command.id,randomUUID(),command.dueAtMs),
+    ]);
+    assert.equal(first.result.replayed,false);assert.equal(retry.result.replayed,true);assert.equal(secondTap.result.replayed,true);
+    assert.equal(first.result.entryId,retry.result.entryId);assert.equal(first.result.entryId,secondTap.result.entryId);
+    assert.notEqual(first.result.entryId,command.completionEntryId);
+    assert.equal((await store.snapshot()).entries.length,1);assert.equal((await store.snapshot()).planning!.events.length,2);
+    const nextDue=command.dueAtMs+86_400_000;
+    assert.deepEqual(domain.deriveReminders(await store.snapshot(),clock).map(row=>[row.dueAtMs,row.status]),[[command.dueAtMs,'done'],[nextDue,'pending']]);
+    clock=nextDue;
+    const next=await store.completeReminder(command.id,randomUUID(),nextDue);
+    assert.notEqual(next.result.entryId,first.result.entryId);assert.equal(next.state.entries.length,2);
+    assert.deepEqual(domain.getPlanning(next.state).occurrenceEntries?.map(binding=>binding.dueAtMs),[command.dueAtMs,nextDue]);
+    domain.validateState(next.state);await store.close();
+  }finally{database.cleanup();}
+});
+
+test('recurring completion rolls back its binding and core entry together before retrying the same operation',async()=>{
+  const database=realSqlite();let fail=false;
+  try{
+    const {DailoopStore:Store}=storeModule(database),store=await Store.open('personal','America/Bogota',()=>now,async(point)=>{if(fail&&point==='before-commit')throw new Error('recurring rollback');});
+    const command=await recurringCommand(store),before=await store.snapshot(),operationId=randomUUID();fail=true;
+    await assert.rejects(store.completeReminder(command.id,operationId,command.dueAtMs),/recurring rollback/);
+    assert.equal(await store.snapshot(),before);
+    const persisted=await store.inspect(await store.backup());assert.equal(domain.canonicalize(persisted.state),domain.canonicalize(before));
+    database.editActive(raw=>{
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entries').get()!.n,0);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM entry_revisions').get()!.n,0);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM operations').get()!.n,1);
+      assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM planning_events').get()!.n,1);
+    });
+    fail=false;const completed=await store.completeReminder(command.id,operationId,command.dueAtMs);
+    assert.equal(completed.state.entries.length,1);assert.equal(completed.state.operations.length,2);assert.equal(completed.state.planning!.events.length,2);
+    assert.equal(domain.canonicalize((await store.inspect(await store.backup())).state),domain.canonicalize(completed.state));await store.close();
+    const reopened=await Store.open('personal','America/Bogota',()=>now);
+    assert.equal(domain.canonicalize(await reopened.snapshot()),domain.canonicalize(completed.state));
+    assert.equal((await reopened.completeReminder(command.id,operationId,command.dueAtMs)).result.replayed,true);await reopened.close();
+  }finally{database.cleanup();}
+});
+
+test('recurring void and restore preserve one binding and one entry through backup v3 restoration and relaunch',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database);let store=await Store.open('personal','America/Bogota',()=>now);
+    const command=await recurringCommand(store),completed=await store.completeReminder(command.id,randomUUID(),command.dueAtMs),entryId=completed.result.entryId!;
+    await store.dispatch({type:'voidEntry',entryId});
+    assert.equal(domain.deriveReminders(await store.snapshot(),now).find(row=>row.dueAtMs===command.dueAtMs)!.status,'pending');
+    const backup=await store.inspect(await store.backup());assert.equal(backup.backup.formatVersion,3);
+    await store.restore(backup);await store.close();store=await Store.open('personal','America/Bogota',()=>now);
+    const restored=await store.completeReminder(command.id,randomUUID(),command.dueAtMs);
+    assert.equal(restored.result.entryId,entryId);assert.equal(restored.state.entries.length,1);assert.equal(restored.state.planning!.events.length,2);
+    assert.deepEqual(restored.state.entryRevisions.map(revision=>revision.kind),['create','void','restore']);
+    assert.deepEqual(domain.getPlanning(restored.state).occurrenceEntries,[{reminderId:command.id,dueAtMs:command.dueAtMs,entryId}]);
+    const final=await store.inspect(await store.backup());assert.equal(final.backup.formatVersion,3);assert.equal(domain.canonicalize(final.state),domain.canonicalize(restored.state));
+    await store.close();store=await Store.open('personal','America/Bogota',()=>now);assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(restored.state));await store.close();
+  }finally{database.cleanup();}
+});
+
+test('corrected and voided recurrence completion repairs its original occurrence without creating a future-dated entry',async()=>{
+  const database=realSqlite();
+  try{
+    const {DailoopStore:Store}=storeModule(database),store=await Store.open('personal','America/Bogota',()=>now);
+    const command=await recurringCommand(store),completed=await store.completeReminder(command.id,randomUUID(),command.dueAtMs),entryId=completed.result.entryId!;
+    await store.dispatch({type:'correctEntry',entryId,occurredAtMs:now-86_400_000});
+    assert.equal(domain.deriveReminders(await store.snapshot(),now).find(row=>row.dueAtMs===command.dueAtMs)!.status,'pending');
+    const repaired=await store.completeReminder(command.id,randomUUID(),command.dueAtMs);
+    assert.equal(repaired.result.entryId,entryId);assert.equal(repaired.state.entries.length,1);
+    assert.equal(domain.effectiveEntries(repaired.state)[0].revision.occurredAtMs,now);
+    await store.dispatch({type:'correctEntry',entryId,occurredAtMs:now-86_400_000});await store.dispatch({type:'voidEntry',entryId});
+    const restored=await store.completeReminder(command.id,randomUUID(),command.dueAtMs);
+    assert.equal(restored.result.entryId,entryId);assert.equal(restored.state.entries.length,1);assert.equal(restored.state.planning!.events.length,2);
+    const effective=domain.effectiveEntries(restored.state)[0];assert.equal(effective.revision.occurredAtMs,now);assert.ok(effective.revision.occurredAtMs<command.dueAtMs);
+    assert.deepEqual(restored.state.entryRevisions.slice(-2).map(revision=>revision.kind),['restore','correct']);
+    domain.validateState(restored.state);
+    assert.equal(domain.canonicalize((await store.inspect(await store.backup())).state),domain.canonicalize(restored.state));await store.close();
+    const reopened=await Store.open('personal','America/Bogota',()=>now);assert.equal(domain.canonicalize(await reopened.snapshot()),domain.canonicalize(restored.state));await reopened.close();
   }finally{database.cleanup();}
 });

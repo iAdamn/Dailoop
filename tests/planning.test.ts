@@ -128,3 +128,26 @@ test('empty planning imports roundtrip as v2 without inventing any core operatio
   const f = setup(); const state = { ...f.state(), planning: { events: [] } }; const text = await exportBackup(state, { backupId: f.nextId(), exportedAtMs: BASE, appVersion: '0.5.0' }, digest);
   assert.equal(JSON.parse(text).formatVersion, 2); assert.deepEqual((await parseBackup(text, digest)).state, state);
 });
+
+test('frozen caches respect future entries, exact due instants, clock rollback and local midnights', () => {
+  const f = setup(); const activityId = f.activity(); const reminder = f.reminder(activityId);
+  f.clock(DUE); const entryId = f.run({ type: 'createEntry', activityId }).result.entryId!;
+  const freeze = (value: any): any => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+  freeze(f.state());
+  assert.equal(deriveReminders(f.state(), DUE - 1)[0].status, 'pending');
+  assert.equal(deriveReminders(f.state(), DUE)[0].completedEntryId, entryId);
+  assert.equal(deriveReminders(f.state(), DUE - 2)[0].status, 'pending');
+  const empty = setup(); const emptyReminder = empty.reminder(empty.activity()); freeze(empty.state());
+  assert.equal(deriveReminders(empty.state(), emptyReminder.dueAtMs)[0].status, 'pending');
+  assert.equal(deriveReminders(empty.state(), emptyReminder.dueAtMs + 1)[0].status, 'overdue');
+  assert.equal(deriveReminders(empty.state(), emptyReminder.dueAtMs)[0].status, 'pending');
+  assert.equal(reminder.id, deriveReminders(f.state(), DUE)[0].id);
+});
+
+test('mutable and merely shallow-frozen input cannot acquire stale derived caches', () => {
+  const f = setup(); const activityId = f.activity(); f.reminder(activityId);
+  const state = f.state(); Object.freeze(state);
+  assert.equal(deriveReminders(state, DUE)[0].status, 'pending');
+  state.planning!.events[0].command = { type: 'archiveReminder', reminderId: getPlanning(state).reminders[0].id, archived: true };
+  assert.throws(() => deriveReminders(state, DUE), error => error instanceof DomainError && error.code === 'missing_reminder');
+});

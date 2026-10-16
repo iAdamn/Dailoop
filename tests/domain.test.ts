@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { COLORS, addCalendarDays, assertZone, buildReport, canonicalize, computeStats, createEmptyState, currentSequence, DomainError, effectiveEntries, elapsedSince, execute, exportBackup, formatTime, lastOccurredAt, localDate, localDateTimeCandidates, makePeriod, parseBackup, periodFor, previousPeriod, resolveLocalDateTime, selectActivities, startOfLocalDay, validateState, type Command, type DomainState, type ReportOptions } from '../src/domain';
+import { LIMITS, COLORS, addCalendarDays, assertZone, buildReport, canonicalize, computeStats, createEmptyState, currentSequence, DomainError, effectiveEntries, elapsedSince, execute, exportBackup, formatTime, lastOccurredAt, localDate, localDateTimeCandidates, makePeriod, parseBackup, periodFor, previousPeriod, resolveLocalDateTime, selectActivities, startOfLocalDay, validateState, type Command, type DomainState, type ReportOptions } from '../src/domain';
 
 const NOW = Date.parse('2026-10-12T17:00:00.000Z');
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -189,4 +189,48 @@ test('all expanded glass colors and original colors survive validated backup res
   f.run({ type: 'updateActivity', activityId: oldId, changes: { color: '#F3E6A2', emoji: '🇨🇴' } });
   validateState(f.state());
   assert.equal(f.state().activityRevisions[0].color, '#6F5BFF');
+});
+
+// A missing civil date must not prevent the period immediately before it.
+test('exclusive period end skips a nonexistent next civil day in Apia', () => {
+  const period = makePeriod({ from: '2011-12-29', to: '2011-12-29', zone: 'Pacific/Apia', nowMs: NOW });
+  assert.equal(period.startMs, Date.parse('2011-12-29T10:00:00Z'));
+  assert.equal(period.endMs, Date.parse('2011-12-30T10:00:00Z'));
+});
+
+test('daily statistics compare the previous existing civil day after an IANA date skip',()=>{
+  const zone='Pacific/Apia', clock=Date.parse('2011-12-31T20:00:00Z');
+  const period=periodFor('day','2011-12-31',zone,clock);
+  const previous=previousPeriod(period,clock);
+  assert.equal(previous.from,'2011-12-29');
+  assert.equal(previous.endMs,period.startMs);
+  const state=createEmptyState({databaseId:'00000000-0000-4000-8000-000000000001',nowMs:clock,zone});
+  assert.doesNotThrow(()=>computeStats(state,period,clock,[]));
+});
+
+test('capacity guards preserve valid states and idempotent retries at every configured boundary', () => {
+  const f = setup(); const activityId = f.activity(); const operationId = f.nextId();
+  const command: Command = { type: 'createEntry', activityId }; f.run(command, operationId);
+  const state = f.state(); validateState(state);
+  // Lower only the test's capacity thresholds, so every boundary can be checked
+  // with a complete validated audit instead of fabricating a million invalid rows.
+  const capacities = LIMITS as { entries: number; revisions: number };
+  const original = { entries: capacities.entries, revisions: capacities.revisions };
+  try {
+    capacities.entries = state.entries.length;
+    assert.equal(f.run(command, operationId).result.replayed, true);
+    const before = canonicalize(state); let allocated = false;
+    errorCode(() => execute(state, command, { nowMs: NOW, operationId: f.nextId(), nextId: () => { allocated = true; return f.nextId(); } }), 'data_too_large');
+    errorCode(() => f.run({ type: 'createActivity', name: 'Otra', emoji: '✨', color: '#6F5BFF' }), 'data_too_large');
+    assert.equal(allocated, false); assert.equal(canonicalize(state), before);
+    capacities.entries = original.entries;
+    capacities.revisions = state.activityRevisions.length + state.entryRevisions.length;
+    for (const action of [{ type: 'voidEntry', entryId: state.entries[0].id }, { type: 'updateActivity', activityId, changes: { name: 'Cambiar' } }] as Command[]) errorCode(() => f.run(action), 'data_too_large');
+    // Settings do not consume revision capacity and remain writable.
+    f.run({ type: 'updateSettings', changes: { hourFormat: '12h' } }); validateState(f.state());
+    capacities.revisions = 1; capacities.entries = state.operations.length - 1;
+    errorCode(() => execute(state, { type: 'updateSettings', changes: { hourFormat: '12h' } }, { nowMs: NOW, operationId: f.nextId(), nextId: f.nextId }), 'data_too_large');
+    assert.equal(execute(state, command, { nowMs: NOW, operationId, nextId: f.nextId }).result.replayed, true);
+  } finally { capacities.entries = original.entries; capacities.revisions = original.revisions; }
+  validateState(state);
 });

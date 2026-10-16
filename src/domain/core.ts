@@ -64,6 +64,12 @@ export function execute(state: DomainState, command: Command, ctx: CommandContex
     else if (previous.entityId) result.entryId = previous.entityId;
     return { state, changeSet: emptyChanges(), result };
   }
+  // Reject before allocating IDs or persisting a state that restore/open would
+  // reject. Idempotent replays above remain available even at the limit.
+  invariant(state.operations.length < LIMITS.revisions + LIMITS.entries, 'data_too_large', 'El historial alcanzó su límite. Exporta una copia para conservar tus datos.');
+  if (command.type === 'createActivity') invariant(state.activities.length < LIMITS.entries, 'data_too_large', 'Se alcanzó el límite de actividades.');
+  if (command.type === 'createEntry') invariant(state.entries.length < LIMITS.entries, 'data_too_large', 'Se alcanzó el límite de registros.');
+  if (command.type !== 'updateSettings') invariant(state.activityRevisions.length + state.entryRevisions.length < LIMITS.revisions, 'data_too_large', 'El historial de cambios alcanzó su límite.');
   const used = new Set([state.meta.databaseId, ...state.activities.map(x => x.id), ...state.entries.map(x => x.id), ...state.activityRevisions.map(x => x.id), ...state.entryRevisions.map(x => x.id), ...state.operations.map(x => x.id)]);
   invariant(!used.has(ctx.operationId), 'duplicate_id', 'El ID de operación ya existe.'); used.add(ctx.operationId);
   const allocate = (specified?: string): string => { const id = specified ?? ctx.nextId(); assertId(id); invariant(!used.has(id), 'duplicate_id', 'El identificador ya existe.'); used.add(id); return id; };

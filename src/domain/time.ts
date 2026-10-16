@@ -5,7 +5,22 @@ import { assertTime, assertZone, DomainError, invariant } from './validation';
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 const dayBoundaries = new Map<string, number>();
+const canonicalZones = new Map<string, string>();
+/** Index equivalent IANA spellings together without rewriting stored user zones. */
+export function canonicalTimeZone(zone: string): string {
+  invariant(typeof zone==='string' && zone.length<=100,'invalid_zone','Zona horaria no válida.');
+  const key=zone.toLowerCase();
+  let canonical=canonicalZones.get(key);
+  if(!canonical){
+    assertZone(zone);
+    canonical=new Intl.DateTimeFormat('en', {timeZone:zone}).resolvedOptions().timeZone;
+    if(canonicalZones.size>=1024)canonicalZones.delete(canonicalZones.keys().next().value!);
+    canonicalZones.set(key,canonical);
+  }
+  return canonical;
+}
 function formatter(zone: string): Intl.DateTimeFormat {
+  zone=canonicalTimeZone(zone);
   let value = formatters.get(zone);
   if (!value) { assertZone(zone); value = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }); formatters.set(zone, value); }
   return value;
@@ -60,7 +75,7 @@ export function resolveLocalDateTime(local: string, zone: string, disambiguation
 }
 export function startOfLocalDay(date: string, zone: string): number {
   parseDate(date); assertZone(zone);
-  const key = `${zone}\0${date}`;
+  const key = `${canonicalTimeZone(zone)}\0${date}`;
   const cached = dayBoundaries.get(key);
   if (cached !== undefined) return cached;
   const remember = (value: number) => {
@@ -84,7 +99,14 @@ export function makePeriod(input: { from: string; to: string; zone: string; kind
     const expected = nominalPeriod(kind, from);
     invariant(expected.from === from && expected.to === to, 'invalid_period', 'El período debe coincidir con una semana o mes calendario.');
   }
-  return { kind, from, to, zone, startMs: startOfLocalDay(from, zone), endMs: startOfLocalDay(addCalendarDays(to, 1), zone), partial: to >= today };
+  const startMs = startOfLocalDay(from, zone);
+  let endDate = addCalendarDays(to, 1);
+  // IANA can omit a whole civil day (Apia, 2011-12-30). An exclusive
+  // boundary is the next existing day, not a reason to reject the prior day.
+  while (true) {
+    try { return { kind, from, to, zone, startMs, endMs: startOfLocalDay(endDate, zone), partial: to >= today }; }
+    catch (error) { if (!(error instanceof DomainError) || error.code !== 'nonexistent_date') throw error; endDate = addCalendarDays(endDate, 1); }
+  }
 }
 function nominalPeriod(kind: 'day' | 'week' | 'month', date: string): { from: string; to: string } {
   const p = parseDate(date);
@@ -95,9 +117,18 @@ function nominalPeriod(kind: 'day' | 'week' | 'month', date: string): { from: st
 }
 export function periodFor(kind: 'day' | 'week' | 'month', date: string, zone: string, nowMs: number): Period { return makePeriod({ ...nominalPeriod(kind, date), kind, zone, nowMs }); }
 export function previousPeriod(period: Period, nowMs: number): Period {
-  const lastDate = addCalendarDays(period.from, -1);
-  if (period.kind !== 'range') return periodFor(period.kind, lastDate, period.zone, nowMs);
-  return makePeriod({ from: addCalendarDays(period.from, -calendarDayCount(period.from, period.to)), to: lastDate, zone: period.zone, nowMs });
+  let lastDate = addCalendarDays(period.from, -1);
+  if (period.kind !== 'range') {
+    while(true){
+      try{return periodFor(period.kind,lastDate,period.zone,nowMs);}
+      catch(error){if(!(error instanceof DomainError)||error.code!=='nonexistent_date')throw error;lastDate=addCalendarDays(lastDate,-1);}
+    }
+  }
+  let from=addCalendarDays(period.from, -calendarDayCount(period.from, period.to));
+  while(true){
+    try{return makePeriod({from,to:lastDate,zone:period.zone,nowMs});}
+    catch(error){if(!(error instanceof DomainError)||error.code!=='nonexistent_date')throw error;from=addCalendarDays(from,-1);}
+  }
 }
 export function elapsedSince(lastMs: number | null, nowMs: number): { status: 'never' | 'clockChanged' | 'elapsed'; milliseconds: number | null; text: string } {
   assertTime(nowMs);

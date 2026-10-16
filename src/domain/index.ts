@@ -6,3 +6,4 @@ export * from './reports';
 export * from './backup';
 export * from './planning';
 export * from './streaks';
+export * from './recurrence';

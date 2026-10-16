@@ -53,8 +53,9 @@ test('Android dispatch keeps foreign keys enabled on its initialized transaction
   };
   try{
     const {DailoopStore:Store}=loadModule('src/infrastructure/store.ts',{'react-native':{Platform:{OS:'android'}},'expo-sqlite':{openDatabaseAsync,deleteDatabaseAsync:async(name:string)=>rmSync(join(directory,name))},'../domain':domain,'./schema':{migrate},'./crypto':{digest,uuid:randomUUID}}) as {DailoopStore:typeof DailoopStore};
-    let probes=0;
+    let probes=0; let cancelAt:string|undefined; let syncAllowed=true;
     const store=await Store.open('personal','America/Bogota',()=>now,async(point)=>{
+      if(point===cancelAt)syncAllowed=false;
       if(point!=='before-commit')return;
       probes++;assert.ok(activeTransaction);
       assert.equal(activeTransaction.prepare('PRAGMA foreign_keys').get()!.foreign_keys,1);
@@ -66,7 +67,26 @@ test('Android dispatch keeps foreign keys enabled on its initialized transaction
       store.dispatch({type:'createActivity',name:'Segunda',emoji:'🌱',color:'#8FD8FF'}),
     ]);
     assert.equal(probes,2);assert.deepEqual(results.map(result=>domain.currentSequence(result.state)),[1,2]);
-    const snapshot=await store.snapshot();await store.close();
+    const beforeSync=await store.snapshot();
+    const expectedBeforeSync=await digest(domain.canonicalize(beforeSync));
+    await store.dispatch({type:'createEntry',activityId:beforeSync.activities[0].id});
+    await assert.rejects(store.applySync(beforeSync,expectedBeforeSync),{name:'SyncLocalChangedError'});
+    const retained=await store.snapshot();
+    assert.equal(retained.entries.length,1,'a local write during network must survive a stale cloud activation');
+    const expected=await digest(domain.canonicalize(retained));
+    const remote=domain.execute(retained,{type:'createEntry',activityId:retained.activities[0].id},{nowMs:now,operationId:randomUUID(),nextId:randomUUID}).state;
+    await assert.rejects(store.applySync(remote,expected,()=>false),{name:'SyncLocalChangedError'});
+    assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(retained));
+    for(const point of ['restore-prepared','restore-activated','registry-ready']){
+      cancelAt=point;syncAllowed=true;
+      await assert.rejects(store.applySync(remote,expected,()=>syncAllowed),{name:'SyncLocalChangedError'});
+      assert.equal(domain.canonicalize(await store.snapshot()),domain.canonicalize(retained),'cancellation at '+point+' must roll back to the exact original dataset');
+    }
+    cancelAt=undefined;
+    await store.applySync(remote,expected,()=>true);
+    const snapshot=await store.snapshot();
+    assert.equal(domain.canonicalize(snapshot),domain.canonicalize(remote));
+    assert.equal(snapshot.entries.length,2);await store.close();
     const reopened=await Store.open('personal','America/Bogota',()=>now);
     assert.equal(domain.canonicalize(await reopened.snapshot()),domain.canonicalize(snapshot));await reopened.close();
   }finally{for(const raw of handles)raw.close();rmSync(directory,{recursive:true,force:true});}

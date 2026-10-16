@@ -16,17 +16,24 @@ export interface EntryRevision { id: string; entryId: string; revisionNo: number
 export interface Operation { id: string; kind: Command['type']; sequence: number; recordedAtMs: number; intent: string; entityId: string | null }
 export interface DomainState { meta: Meta; activities: Activity[]; activityRevisions: ActivityRevision[]; entries: Entry[]; entryRevisions: EntryRevision[]; operations: Operation[]; settings: Settings; planning?: PlanningState }
 /** Planning has its own append-only log; recording an activity still uses the original audit. */
-export interface Reminder { id: string; activityId: string; dueAtMs: number; leadMinutes: number[]; notifications: boolean; completionEntryId: string; createdAtMs: number; isArchived: boolean }
+export interface ReminderRecurrence { weekdays: number[]; hour: number; minute: number; zone: string }
+export interface ReminderOccurrenceEntry { reminderId: string; dueAtMs: number; entryId: string }
+/** The original due instant remains the identity, even after postponing. */
+export interface ReminderOccurrenceAction { reminderId: string; dueAtMs: number; skipped: boolean; snoozedUntilMs?: number }
+export interface Reminder { id: string; activityId: string; dueAtMs: number; leadMinutes: number[]; notifications: boolean; completionEntryId: string; createdAtMs: number; isArchived: boolean; recurrence?: ReminderRecurrence }
 export interface StreakAlerts { enabled: boolean; hour: number; minute: number }
 export type PlanningCommand =
-  | { type: 'createReminder'; id: string; activityId: string; dueAtMs: number; leadMinutes: number[]; notifications: boolean; completionEntryId: string }
-  | { type: 'updateReminder'; reminderId: string; changes: Partial<Pick<Reminder, 'dueAtMs' | 'leadMinutes' | 'notifications'>> }
+  | { type: 'createReminder'; id: string; activityId: string; dueAtMs: number; leadMinutes: number[]; notifications: boolean; completionEntryId: string; recurrence?: ReminderRecurrence }
+  | { type: 'updateReminder'; reminderId: string; changes: Partial<Pick<Reminder, 'dueAtMs' | 'leadMinutes' | 'notifications'>> & { recurrence?: ReminderRecurrence | null } }
+  | { type: 'linkReminderOccurrence'; reminderId: string; dueAtMs: number; entryId: string }
+  | { type: 'snoozeReminderOccurrence'; reminderId: string; dueAtMs: number; snoozedUntilMs: number }
+  | { type: 'skipReminderOccurrence'; reminderId: string; dueAtMs: number }
   | { type: 'archiveReminder'; reminderId: string; archived: boolean }
   | { type: 'setStreakAlerts'; enabled: boolean; hour: number; minute: number };
 export interface PlanningEvent { id: string; sequence: number; recordedAtMs: number; command: PlanningCommand }
 export interface PlanningState { events: PlanningEvent[] }
-export interface PlanningView { reminders: Reminder[]; streakAlerts: StreakAlerts }
-export interface DerivedReminder extends Reminder { status: 'pending' | 'overdue' | 'done' | 'archived'; completedEntryId: string | null }
+export interface PlanningView { reminders: Reminder[]; streakAlerts: StreakAlerts; occurrenceEntries?: ReminderOccurrenceEntry[]; occurrenceActions?: ReminderOccurrenceAction[] }
+export interface DerivedReminder extends Reminder { status: 'pending' | 'overdue' | 'done' | 'archived' | 'skipped'; completedEntryId: string | null; scheduledAtMs?: number }
 export interface ActivityStreak { days: number; recordedToday: boolean; lastDate: string | null }
 export interface CurrentActivity extends ActivityFields { id: string; createdAtMs: number; revisionId: string; revisionNo: number }
 export interface EffectiveEntry { id: string; activityId: string; createdAtMs: number; revision: EntryRevision; sequence: number; activity: CurrentActivity }
@@ -51,7 +58,7 @@ export interface ReportModel { format: 'dailoop-report/1'; period: Period; gener
 export interface IntervalStats { count: number; averageMs: number | null; shortestMs: number | null; longestMs: number | null }
 export interface PeriodStats { total: number; perActivity: { activityId: string; count: number }[]; intervals: IntervalStats; previousTotal: number; change: number; changePercent: number | null; previousPeriod: Period }
 export interface BackupCounts { activities: number; activityRevisions: number; entries: number; entryRevisions: number; operations: number }
-export interface BackupFile { format: 'dailoop-backup'; formatVersion: 1 | 2; schemaVersion: 1; backupId: string; databaseId: string; exportedAt: string; appVersion: string; scope: 'full'; counts: BackupCounts; payload: DomainState; digest: string }
+export interface BackupFile { format: 'dailoop-backup'; formatVersion: 1 | 2 | 3 | 4; schemaVersion: 1; backupId: string; databaseId: string; exportedAt: string; appVersion: string; scope: 'full'; counts: BackupCounts; payload: DomainState; digest: string }
 export type Digest = (canonicalUtf8: string) => Promise<string>;
 export interface BackupOptions { backupId: string; exportedAtMs: number; appVersion: string }
 export interface ParsedBackup { backup: BackupFile; state: DomainState; summary: BackupCounts & { databaseId: string; backupId: string; exportedAt: string; firstOccurredAtMs: number | null; lastOccurredAtMs: number | null } }

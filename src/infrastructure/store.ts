@@ -2,7 +2,7 @@ import { APP_VERSION } from '../version';
 import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { applyPlanning, deriveReminders, createEmptyState, execute, selectActivities, effectiveEntries, buildReport, exportBackup, parseBackup, validateState, canonicalize, currentSequence } from '../domain';
+import { applyPlanning, deriveReminders, getPlanning, createEmptyState, execute, selectActivities, effectiveEntries, buildReport, exportBackup, parseBackup, validateState, canonicalize, currentSequence } from '../domain';
 import type { PlanningCommand, PlanningEvent, DomainState, Command, CommandResult, ChangeSet, ReportOptions, ParsedBackup, Meta, Settings, Activity, ActivityRevision, Entry, EntryRevision, Operation } from '../domain';
 import { migrate } from './schema';
 import { digest, uuid } from './crypto';
@@ -12,6 +12,8 @@ export const RECOVERY_MESSAGE = 'No se pudo confirmar qué base quedó activa. D
 export class RecoveryRequiredError extends Error {
   constructor(){super(RECOVERY_MESSAGE);this.name='RecoveryRequiredError';}
 }
+export class SyncLocalChangedError extends Error { constructor(){super('Los datos cambiaron durante la sincronización. Se volverá a intentar.');this.name='SyncLocalChangedError';} }
+
 type Registry = { scope: Mode; active: string; previous: string | null; candidate: string | null; phase: 'ready' | 'prepared' | 'activated' };
 const registryName = 'dailoop-registry-v1.db';
 // wa-sqlite's VFS limits paths to 64 bytes, including ./ and the -journal suffix.
@@ -44,20 +46,36 @@ export async function readSnapshot(db:SQLiteDatabase):Promise<DomainState> {
   return {meta:meta[0],settings:settings[0],activities:await readRows<Activity>(db,'activities'),activityRevisions:await readRows<ActivityRevision>(db,'activity_revisions'),entries:await readRows<Entry>(db,'entries'),entryRevisions:await readRows<EntryRevision>(db,'entry_revisions'),operations:await readRows<Operation>(db,'operations'),...(events.length||present?{planning:{events}}:{})};
 }
 
-async function writeDelta(db:SQLiteDatabase, delta:ChangeSet, state:DomainState) {
+async function writeDelta(db:SQLiteDatabase, delta:ChangeSet, state:DomainState, rebuild=false) {
   for(const o of delta.operations) await db.runAsync('INSERT INTO operations VALUES(?,?,?)',o.id,o.sequence,JSON.stringify(o));
   for(const a of delta.activities) await db.runAsync('INSERT INTO activities VALUES(?,?)',a.id,JSON.stringify(a));
   for(const r of delta.activityRevisions) await db.runAsync('INSERT INTO activity_revisions VALUES(?,?,?,?,?,?)',r.id,r.activityId,r.revisionNo,r.previousRevisionId,r.operationId,JSON.stringify(r));
   for(const e of delta.entries) await db.runAsync('INSERT INTO entries VALUES(?,?,?,?)',e.id,e.activityId,e.creationOperationId,JSON.stringify(e));
   for(const r of delta.entryRevisions) await db.runAsync('INSERT INTO entry_revisions VALUES(?,?,?,?,?,?,?)',r.id,r.entryId,r.revisionNo,r.previousRevisionId,r.operationId,r.activityRevisionId,JSON.stringify(r));
   if(delta.settings) await db.runAsync('INSERT INTO settings VALUES(1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json',JSON.stringify(delta.settings));
-  const changedActivities = new Set(delta.activityIds);
-  for(const a of selectActivities(state,{includeArchived:true}).filter(a=>changedActivities.has(a.id))) {
+  // Normal commits project only appended revisions; repair is the explicit
+  // full-history path, rather than the cost of every registration.
+  const revisedActivities = new Set(delta.activityRevisions.map(r=>r.activityId));
+  const activityState = rebuild ? state : {...state,
+    activities:state.activities.filter(a=>revisedActivities.has(a.id)),
+    activityRevisions:delta.activityRevisions, operations:delta.operations};
+  for(const a of selectActivities(activityState,{includeArchived:true})) {
     await db.runAsync('INSERT INTO activity_current VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET revision_id=excluded.revision_id,json=excluded.json',a.id,a.revisionId,JSON.stringify(a));
   }
-  const changedEntries = new Set(delta.entryIds);
-  for(const e of effectiveEntries(state,{includeVoided:true}).filter(e=>changedEntries.has(e.id))) {
-    await db.runAsync('INSERT INTO entry_current VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET revision_id=excluded.revision_id,activity_id=excluded.activity_id,state=excluded.state,occurred_at_ms=excluded.occurred_at_ms,json=excluded.json',e.id,e.revision.id,e.activityId,e.revision.state,e.revision.occurredAtMs,JSON.stringify(e.revision));
+  const entryRevisions = new Map<string,EntryRevision>();
+  if(rebuild) for(const e of effectiveEntries(state,{includeVoided:true})) entryRevisions.set(e.id,e.revision);
+  else for(const revision of delta.entryRevisions) {
+    const previous=entryRevisions.get(revision.entryId);
+    if(!previous || previous.revisionNo<revision.revisionNo) entryRevisions.set(revision.entryId,revision);
+  }
+  const identities = new Map(delta.entries.map(entry=>[entry.id,entry]));
+  if([...entryRevisions.keys()].some(id=>!identities.has(id))) {
+    for(const entry of state.entries) if(entryRevisions.has(entry.id)) identities.set(entry.id,entry);
+  }
+  for(const [id,revision] of entryRevisions) {
+    const entry=identities.get(id);
+    if(!entry) throw new Error('La proyección no tiene su registro original.');
+    await db.runAsync('INSERT INTO entry_current VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET revision_id=excluded.revision_id,activity_id=excluded.activity_id,state=excluded.state,occurred_at_ms=excluded.occurred_at_ms,json=excluded.json',id,revision.id,entry.activityId,revision.state,revision.occurredAtMs,JSON.stringify(revision));
   }
 }
 
@@ -88,7 +106,7 @@ async function checkIntegrity(db:SQLiteDatabase) {
   if(ac.length!==activities.length || ec.length!==entries.length || activities.some(a=>aIndex.get(a.id)?.revision_id!==a.revisionId || !equivalent(aIndex.get(a.id)?.json,a)) || entries.some(e=>{const row=eIndex.get(e.id);return row?.revision_id!==e.revision.id || row.activity_id!==e.activityId || row.state!==e.revision.state || row.occurred_at_ms!==e.revision.occurredAtMs || !equivalent(row.json,e.revision);})) {
     await db.withTransactionAsync(async()=>{
       await db.execAsync('DELETE FROM entry_current; DELETE FROM activity_current;');
-      await writeDelta(db,{activities:[],entries:[],operations:[],activityRevisions:[],entryRevisions:[],settings:null,activityIds:activities.map(a=>a.id),entryIds:entries.map(e=>e.id)},state);
+      await writeDelta(db,{activities:[],entries:[],operations:[],activityRevisions:[],entryRevisions:[],settings:null,activityIds:activities.map(a=>a.id),entryIds:entries.map(e=>e.id)},state,true);
     });
   }
   return state;
@@ -181,11 +199,12 @@ export class DailoopStore {
     throw new RecoveryRequiredError();
   }
   snapshot(){ return this.serial(async()=>this.cachedState); }
-  dispatchPlanning(command:PlanningCommand,operationId=uuid()):Promise<DomainState> {
+  dispatchPlanning(command:PlanningCommand,operationId=uuid(),guard?:(state:DomainState)=>void):Promise<DomainState> {
     return this.serial(async()=>{
       let next!:DomainState;
       await this.db.withTransactionAsync(async()=>{
         const current=await this.committedState(this.db);
+        guard?.(current);
         const planning=applyPlanning(current,command,{nowMs:this.clock(),operationId,nextId:uuid});
         next={...current,planning};
         await this.db.runAsync('INSERT OR IGNORE INTO planning_meta VALUES(1,1)');
@@ -196,22 +215,44 @@ export class DailoopStore {
       return this.cachedState;
     });
   }
-  completeReminder(reminderId:string,operationId=uuid()):Promise<CommandResult> {
+  completeReminder(reminderId:string,operationId=uuid(),dueAtMs?:number,guard?:(state:DomainState)=>void):Promise<CommandResult> {
     return this.serial(async()=>{
       let result!:CommandResult;
       await this.db.withTransactionAsync(async()=>{
         const current=await this.committedState(this.db);
+        guard?.(current);
         const now=this.clock();
-        const reminder=deriveReminders(current,now).find(item=>item.id===reminderId);
-        if(!reminder || reminder.status==='archived')throw new Error('Este recordatorio ya no está disponible.');
+        const plan=getPlanning(current);
+        const series=plan.reminders.find(item=>item.id===reminderId);
+        if(series?.recurrence && dueAtMs===undefined)throw new Error('Elige la ocasión del recordatorio que quieres completar.');
+        const reminder=deriveReminders(current,now).find(item=>item.id===reminderId && (dueAtMs===undefined || item.dueAtMs===dueAtMs));
+        if(!reminder || reminder.status==='archived' || reminder.status==='skipped')throw new Error('Este recordatorio ya no está disponible.');
         const activity=selectActivities(current).find(item=>item.id===reminder.activityId);
         if(!activity)throw new Error('Restaura la actividad antes de completar su recordatorio.');
         if(reminder.status==='done') {
           result={state:current,changeSet:{activities:[],activityRevisions:[],entries:[],entryRevisions:[],operations:[],settings:null,activityIds:[],entryIds:[]},result:{entryId:reminder.completedEntryId??undefined,replayed:true}};
           return;
         }
-        const existing=effectiveEntries(current,{includeVoided:true}).find(entry=>entry.id===reminder.completionEntryId);
-        result=execute(current,existing?{type:'restoreEntry',entryId:existing.id}:{type:'createEntry',activityId:reminder.activityId,id:reminder.completionEntryId,occurredAtMs:now,occurredZone:current.settings.zone},{nowMs:now,operationId,nextId:uuid});
+        const linked=reminder.recurrence ? plan.occurrenceEntries?.find(item=>item.reminderId===reminderId && item.dueAtMs===reminder.dueAtMs) : undefined;
+        const completionId=linked?.entryId ?? (reminder.recurrence ? uuid() : reminder.completionEntryId);
+        const existing=effectiveEntries(current,{includeVoided:true}).find(entry=>entry.id===completionId);
+        const original=existing ? current.entryRevisions.find(revision=>revision.entryId===existing.id && revision.revisionNo===1) : undefined;
+        const command:Command=existing
+          ? existing.revision.state==='void' ? {type:'restoreEntry',entryId:existing.id}
+            : {type:'correctEntry',entryId:existing.id,occurredAtMs:original!.occurredAtMs,occurredZone:original!.occurredZone,reason:'Restablecer la ocasión del recordatorio'}
+          : {type:'createEntry',activityId:reminder.activityId,id:completionId,occurredAtMs:now,occurredZone:current.settings.zone};
+        result=execute(current,command,{nowMs:now,operationId,nextId:uuid});
+        // Restoring a voided, corrected entry must also restore its occurrence's original day.
+        if(reminder.recurrence && existing?.revision.state==='void' && original && existing.revision.occurredAtMs!==original.occurredAtMs) {
+          const repaired=execute(result.state,{type:'correctEntry',entryId:existing.id,occurredAtMs:original.occurredAtMs,occurredZone:original.occurredZone,reason:'Restablecer la ocasión del recordatorio'},{nowMs:now,operationId:uuid(),nextId:uuid});
+          const first=result.changeSet,second=repaired.changeSet;
+          result={...repaired,changeSet:{activities:[...first.activities,...second.activities],activityRevisions:[...first.activityRevisions,...second.activityRevisions],entries:[...first.entries,...second.entries],entryRevisions:[...first.entryRevisions,...second.entryRevisions],operations:[...first.operations,...second.operations],settings:second.settings??first.settings,activityIds:[...new Set([...first.activityIds,...second.activityIds])],entryIds:[...new Set([...first.entryIds,...second.entryIds])]}};
+        }
+        if(reminder.recurrence && !linked) {
+          const planning=applyPlanning(result.state,{type:'linkReminderOccurrence',reminderId,dueAtMs:reminder.dueAtMs,entryId:completionId},{nowMs:now,operationId:uuid(),nextId:uuid});
+          result={...result,state:{...result.state,planning}};
+          for(const event of planning.events.slice(current.planning?.events.length??0))await this.db.runAsync('INSERT INTO planning_events VALUES(?,?,?)',event.id,event.sequence,JSON.stringify(event));
+        }
         await writeDelta(this.db,result.changeSet,result.state);
         await this.checkpoint?.('before-commit');
       });
@@ -219,13 +260,14 @@ export class DailoopStore {
       return result;
     });
   }
-  dispatch(command:Command,operationId=uuid()):Promise<CommandResult> {
+  dispatch(command:Command,operationId=uuid(),guard?:(state:DomainState)=>void):Promise<CommandResult> {
     return this.serial(async()=>{
       let result!:CommandResult;
       const work=async(db:SQLiteDatabase)=>{
         // The origin has one owner, but verify the committed sequence inside the
         // transaction before deriving changes. SQLite remains authoritative.
         const current=await this.committedState(db);
+        guard?.(current);
         result=execute(current,command,{nowMs:this.clock(),operationId,nextId:uuid});
         await writeDelta(db,result.changeSet,result.state);
         await this.checkpoint?.('before-commit');
@@ -243,25 +285,40 @@ export class DailoopStore {
   backup(){ return this.serial(async()=>exportBackup(await readSnapshot(this.db),{backupId:uuid(),exportedAtMs:this.clock(),appVersion:APP_VERSION},digest)); }
   inspect(text:string){ return parseBackup(text,digest); }
   restore(candidate:ParsedBackup) {
+    return this.serial(()=>this.activateSnapshot(candidate.state));
+  }
+  /** Compare inside the same serialized write boundary; network never owns local writes. */
+  applySync(state:DomainState,expectedDigest:string,stillAllowed:()=>boolean=()=>true) {
     return this.serial(async()=>{
-      validateState(candidate.state);
+      const current=await this.committedState(this.db);
+      if(await digest(canonicalize(current))!==expectedDigest || !stillAllowed()) throw new SyncLocalChangedError();
+      await this.activateSnapshot(state,stillAllowed);
+    });
+  }
+  private async activateSnapshot(state:DomainState,stillAllowed:()=>boolean=()=>true) {
+      const guard=()=>{if(!stillAllowed())throw new SyncLocalChangedError();};
+      validateState(state);
       const old=this.record.active;
       const name=datasetName(this.mode);
       let candidateDb:SQLiteDatabase|undefined;
       try {
         candidateDb=await SQLite.openDatabaseAsync(name); await migrate(candidateDb,digest);
-        await seedDataset(candidateDb,candidate.state);
+        await seedDataset(candidateDb,state);
         const loaded=await checkIntegrity(candidateDb);
-        if(canonicalize(loaded)!==canonicalize(candidate.state)) throw new Error('La copia restaurada no coincide con el archivo validado.');
+        if(canonicalize(loaded)!==canonicalize(state)) throw new Error('La copia restaurada no coincide con el archivo validado.');
         await candidateDb.closeAsync(); candidateDb=undefined;
         this.record={scope:this.mode,active:old,previous:old,candidate:name,phase:'prepared'}; await this.saveRecord();
         await this.checkpoint?.('restore-prepared');
+        guard();
         await this.db.closeAsync();
+        guard();
         this.record={scope:this.mode,active:name,previous:old,candidate:name,phase:'activated'}; await this.saveRecord();
         await this.checkpoint?.('restore-activated');
+        guard();
         this.db=await SQLite.openDatabaseAsync(name); await migrate(this.db,digest); const restored=await checkIntegrity(this.db);
+        guard();
         this.record={scope:this.mode,active:name,previous:null,candidate:null,phase:'ready'};
-        await this.checkpoint?.('registry-ready');await this.saveRecord();
+        await this.checkpoint?.('registry-ready');guard();await this.saveRecord();guard();
         this.publishState(restored);
         await SQLite.deleteDatabaseAsync(old).catch(()=>{});
       } catch(error) {
@@ -277,7 +334,6 @@ export class DailoopStore {
         await SQLite.deleteDatabaseAsync(name).catch(()=>{});
         throw error;
       }
-    });
   }
   close(){
     // Cleanup must also be safe after the recovery barrier has closed the handles.

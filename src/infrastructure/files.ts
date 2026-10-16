@@ -4,43 +4,47 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as LegacyFS from 'expo-file-system/legacy';
 import { File, Paths, Directory } from 'expo-file-system';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { LIMITS } from '../domain';
 import {uuid} from './crypto';
+import { translate, type AppLanguage } from '../i18n/core';
 
-export async function saveText(text:string,filename:string,mime='text/plain'):Promise<string> {
+export async function saveText(text:string,filename:string,mime='text/plain',language:AppLanguage='es'):Promise<string> {
+  const t=(source:string)=>translate(language,source);
   if(Platform.OS==='web') {
     const blob=new Blob([text],{type:`${mime};charset=utf-8`}); const url=URL.createObjectURL(blob);
     const anchor=document.createElement('a'); anchor.href=url; anchor.download=filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30_000);
-    return 'Archivo preparado para descargar. Revisa las descargas del navegador.';
+    return t('Archivo preparado para descargar. Revisa las descargas del navegador.');
   }
   if(Platform.OS==='android') {
     const permission=await LegacyFS.StorageAccessFramework.requestDirectoryPermissionsAsync();
-    if(!permission.granted) return 'Guardado cancelado.';
+    if(!permission.granted) return t('Guardado cancelado.');
     const uri=await LegacyFS.StorageAccessFramework.createFileAsync(permission.directoryUri,filename,mime);
     await LegacyFS.writeAsStringAsync(uri,text,{encoding:LegacyFS.EncodingType.UTF8});
-    return 'Archivo guardado en la carpeta elegida.';
+    return t('Archivo guardado en la carpeta elegida.');
   }
   throw new Error('El guardado local está disponible en Android y en la vista previa Web.');
 }
-export const copyText = async(text:string) => {
+export const copyText = async(text:string,language:AppLanguage='es') => {
   if(!await Clipboard.setStringAsync(text)) throw new Error('No se pudo copiar el texto. Puedes guardarlo como archivo Markdown.');
-  return 'Markdown copiado.';
+  return translate(language,'Markdown copiado.');
 };
-export async function shareText(text:string,filename:string):Promise<string> {
+export async function shareText(text:string,filename:string,language:AppLanguage='es'):Promise<string> {
+  const t=(source:string)=>translate(language,source);
   if(Platform.OS==='web') {
     if(navigator.share) {
-      try {await navigator.share({title:'Reporte Dailoop',text});return 'Se abrió la opción de compartir. El destino controla el envío.';}
-      catch(error){if(error instanceof Error && error.name==='AbortError')return 'Compartir cancelado.';throw error;}
+      try {await navigator.share({title:t('Reporte Dailoop'),text});return t('Se abrió la opción de compartir. El destino controla el envío.');}
+      catch(error){if(error instanceof Error && error.name==='AbortError')return t('Compartir cancelado.');throw error;}
     }
-    return saveText(text,filename,'text/markdown');
+    return saveText(text,filename,'text/markdown',language);
   }
   if(!await Sharing.isAvailableAsync()) throw new Error('Compartir no está disponible. Usa Guardar Markdown.');
   const directory=new Directory(Paths.cache,'dailoop-exports'); directory.create({intermediates:true,idempotent:true});
   // A receiving app may read the shared URI later. Never replace its bytes with another report.
   const file=new File(directory,`${uuid()}-${filename}`); file.create(); file.write(text);
-  await Sharing.shareAsync(file.uri,{mimeType:'text/markdown',dialogTitle:'Compartir reporte Dailoop'});
-  return 'Archivo preparado. El diálogo del sistema controla el envío o la cancelación.';
+  await Sharing.shareAsync(file.uri,{mimeType:'text/markdown',dialogTitle:t('Compartir reporte Dailoop')});
+  return t('Archivo preparado. El diálogo del sistema controla el envío o la cancelación.');
 }
 export async function pickBackup():Promise<string|null> {
   if(Platform.OS==='web') return new Promise((resolve,reject)=>{
@@ -56,9 +60,19 @@ export async function pickBackup():Promise<string|null> {
     };
     input.click();
   });
-  const picked=await DocumentPicker.getDocumentAsync({type:['application/json','text/plain','application/octet-stream'],copyToCacheDirectory:true,multiple:false});
+  // Never let the picker copy an untrusted provider stream before our byte cap.
+  const picked=await DocumentPicker.getDocumentAsync({type:['application/json','text/plain','application/octet-stream'],copyToCacheDirectory:Platform.OS!=='android',multiple:false});
   if(picked.canceled) return null;
   const asset=picked.assets[0];
+  if(Platform.OS==='android') {
+    if(typeof asset.size==='number' && asset.size>LIMITS.backupBytes) throw new Error('La copia supera el límite de 50 MiB.');
+    // Provider size metadata may be absent or inaccurate. The native reader
+    // counts actual bytes, supports non-seekable content URIs, and closes its
+    // input on every outcome without copying or deleting the provider original.
+    const reader=requireOptionalNativeModule<{readBackup(uri:string):Promise<string>}>('DailoopBackup');
+    if(!reader?.readBackup) throw new Error('Esta compilación necesita el lector seguro de backups. Actualiza la app para importar este archivo.');
+    return reader.readBackup(asset.uri);
+  }
   const file=new File(asset.uri);
   try { if(file.size>LIMITS.backupBytes) throw new Error('La copia supera el límite de 50 MiB.'); return await file.text(); }
   finally {try {if(file.uri.startsWith(Paths.cache.uri))file.delete();} catch {/* Never remove a provider-owned original. */}}
