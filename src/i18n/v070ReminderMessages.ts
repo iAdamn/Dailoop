@@ -1,0 +1,20 @@
+import type { MessageCatalog } from './core';
+export const v070ReminderMessages:MessageCatalog={
+  'Recordatorios omitidos':{en:'Skipped reminders',pt:'Lembretes pulados'},
+  'Omitidos':{en:'Skipped',pt:'Pulados'},
+  'Sin ocasiones omitidas':{en:'No skipped occurrences',pt:'Nenhuma ocorrência pulada'},
+  'Omitir una ocasión conserva la siguiente y no registra la actividad.':{en:'Skipping an occurrence keeps the next one and does not record the activity.',pt:'Pular uma ocorrência mantém a próxima e não registra a atividade.'},
+  'Pospuesto hasta {date}':{en:'Snoozed until {date}',pt:'Adiado até {date}'},
+  'Omitido · sin registrar la actividad':{en:'Skipped · activity not recorded',pt:'Pulado · atividade não registrada'},
+  'Posponer recordatorio de {activity}':{en:'Snooze reminder for {activity}',pt:'Adiar lembrete de {activity}'},
+  'Omitir esta ocasión de {activity}':{en:'Skip this occurrence of {activity}',pt:'Pular esta ocorrência de {activity}'},
+  'Posponer':{en:'Snooze',pt:'Adiar'},
+  'Omitir':{en:'Skip',pt:'Pular'},
+  'Posponer recordatorio':{en:'Snooze reminder',pt:'Adiar lembrete'},
+  'Omitir esta ocasión':{en:'Skip this occurrence',pt:'Pular esta ocorrência'},
+  'Elige cuándo volver a recibir el aviso. Esto no registra la actividad.':{en:'Choose when to receive the reminder again. This does not record the activity.',pt:'Escolha quando receber o aviso novamente. Isso não registra a atividade.'},
+  'Solo se omite esta ocasión. La actividad no se registra y las siguientes repeticiones se conservan.':{en:'Only this occurrence is skipped. The activity is not recorded and future repeats are kept.',pt:'Somente esta ocorrência será pulada. A atividade não será registrada e as próximas repetições serão mantidas.'},
+  '1 hora':{en:'1 hour',pt:'1 hora'},
+  '{count} minutos':{en:'{count} minutes',pt:'{count} minutos'},
+  'Confirmar omisión':{en:'Confirm skip',pt:'Confirmar pulo'},
+};

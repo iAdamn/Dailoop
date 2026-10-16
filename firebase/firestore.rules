@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function freshOwner(uid) {
+      return owner(uid) && request.auth.token.auth_time is int
+        && request.auth.token.auth_time * 1000 <= request.time.toMillis()
+        && request.time.toMillis() - request.auth.token.auth_time * 1000 <= 300000;
+    }
+    function deleting(uid) { return exists(/databases/$(database)/documents/users/$(uid)/security/deletion); }
+    function syncWriter(uid) {
+      return owner(uid) && !deleting(uid)
+        && !existsAfter(/databases/$(database)/documents/users/$(uid)/security/deletion);
+    }
+    function deletionOwner(uid) { return freshOwner(uid) && deleting(uid); }
+    function syncReader(uid) { return owner(uid) && (!deleting(uid) || freshOwner(uid)); }
+    // Minimal permanent safety marker: no profile, activity or token is retained.
+    // It prevents already-issued tokens/old clients from recreating erased data.
+    match /users/{uid}/security/deletion {
+      allow get: if owner(uid);
+      allow create: if freshOwner(uid)
+        && request.resource.data.keys().hasAll(['schema', 'startedAt'])
+        && request.resource.data.keys().hasOnly(['schema', 'startedAt'])
+        && request.resource.data.schema is int && request.resource.data.schema == 1
+        && request.resource.data.startedAt is timestamp && request.resource.data.startedAt == request.time;
+      allow list, update, delete: if false;
+    }
+    function sha(value) { return value is string && value.matches('[0-9a-f]{64}'); }
+    function manifest(data, version) {
+      return data.keys().hasAll(['schema', 'version', 'chunks', 'bytes'])
+        && data.keys().hasOnly(['schema', 'version', 'chunks', 'bytes'])
+        && data.schema is int && data.schema == 1 && data.version == version && sha(version)
+        && data.chunks is list && data.chunks.size() > 0 && data.chunks.size() <= 240
+        && data.chunks.join(',').matches('[0-9a-f]{64}(,[0-9a-f]{64})*')
+        && data.bytes is int && data.bytes > 0 && data.bytes <= 52428800
+        && data.bytes <= data.chunks.size() * 262144;
+    }
+    match /users/{uid}/chunks/{hash} {
+      allow get: if syncReader(uid);
+      allow create: if syncWriter(uid) && sha(hash)
+        && request.resource.data.keys().hasAll(['schema', 'hash', 'text'])
+        && request.resource.data.keys().hasOnly(['schema', 'hash', 'text'])
+        && request.resource.data.schema is int && request.resource.data.schema == 1 && request.resource.data.hash == hash
+        && request.resource.data.text is string
+        && request.resource.data.text.toUtf8().size() > 0
+        && request.resource.data.text.toUtf8().size() <= 262144
+        && hashing.sha256(request.resource.data.text.toUtf8()).toHexString().lower() == hash;
+      allow list, delete: if deletionOwner(uid);
+      allow update: if false;
+    }
+    match /users/{uid}/versions/{version} {
+      allow get: if syncReader(uid);
+      allow create: if syncWriter(uid) && manifest(request.resource.data, version);
+      allow list, delete: if deletionOwner(uid);
+      allow update: if false;
+    }
+    match /users/{uid}/sync/head {
+      allow get: if syncReader(uid);
+      allow create, update: if syncWriter(uid)
+        && request.resource.data.keys().hasAll(['schema', 'version'])
+        && request.resource.data.keys().hasOnly(['schema', 'version', 'recovery'])
+        && request.resource.data.schema is int && request.resource.data.schema == 1 && sha(request.resource.data.version)
+        && (!('recovery' in request.resource.data) || (request.resource.data.recovery is list
+          && request.resource.data.recovery.size() <= 20
+          && request.resource.data.recovery.toSet().size() == request.resource.data.recovery.size()
+          && (request.resource.data.recovery.size() == 0
+            || request.resource.data.recovery.join(',').matches('[0-9a-f]{64}(,[0-9a-f]{64})*'))))
+        && exists(/databases/$(database)/documents/users/$(uid)/versions/$(request.resource.data.version))
+        && manifest(get(/databases/$(database)/documents/users/$(uid)/versions/$(request.resource.data.version)).data, request.resource.data.version);
+      allow delete: if deletionOwner(uid);
+      allow list: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
