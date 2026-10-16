@@ -8,6 +8,14 @@ const excludes = domains.map(domain => `    <exclude domain="${domain}" path="."
 /** Recreated by prebuild: device data stays local; release never uses the public debug key. */
 module.exports = function withAndroidRelease(config) {
   config = withAndroidManifest(config, result => {
+    // Incremental prebuild preserves old tools:node="remove" tombstones even
+    // after a permission is explicitly authorized in app.json. Reconcile only
+    // requested permissions that are not currently blocked by the app contract.
+    const blocked = new Set(config.android?.blockedPermissions || []);
+    const requested = new Set((config.android?.permissions || []).filter(name => !blocked.has(name)));
+    for (const permission of result.modResults.manifest['uses-permission'] || []) {
+      if (requested.has(permission.$['android:name']) && permission.$['tools:node'] === 'remove') delete permission.$['tools:node'];
+    }
     const application = result.modResults.manifest.application[0].$;
     Object.assign(application, {
       'android:allowBackup': 'false',
