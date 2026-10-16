@@ -1,3 +1,9 @@
+# Instalar Dailoop 0.7.0
+
+[Descargar APK actual 0.7.0/build8](https://github.com/iAdamn/Dailoop/releases/download/v0.7.0/Dailoop-0.7.0-build8-arm64.apk) · [Integridad y entrega](RELEASE-0.7.0.md) · [Pruebas en teléfono](PRUEBAS-0.7.0.md). Guarda un backup fuera de la app e instala encima de la versión anterior; no desinstales. Se conserva el paquete y el certificado. APK ARM64 de 38,76 MB, con cuenta Google/sync opcionales y uso offline.
+
+## Instrucciones históricas de la primera release
+
 # Instalar Dailoop desde Dailoop 1.0
 
 La primera release del repositorio contiene el APK personal firmado **Dailoop 0.1.0, compilación 2**. La app funciona sin cuenta, Expo Go ni servidor. Usa SQLite local.

@@ -28,3 +28,21 @@ Evidencia reproducible en `output/verification/v0.7.0/`: checks automatizados, r
 La validación nativa de compilación/binario no prueba recepción de avisos, reinicio/Doze, comportamiento One UI, permisos Google ni fluidez física. Ver [PRUEBAS-0.7.0.md](PRUEBAS-0.7.0.md). No se han borrado cuentas personales ni instalado sobre el teléfono. El inventario npm mantiene advisories upstream; no se presenta como limpio ni se forzaron actualizaciones incompatibles.
 
 La APK firmada y sus datos de integridad se incorporan a la release pública v0.7.0 y al informe final de aceptación una vez terminadas las comprobaciones binarias.
+
+## Entrega verificada
+
+APK: **Dailoop-0.7.0-build8-arm64.apk**, **38.762.610 bytes (38,76 MB)**. Aumenta 674.474 bytes frente a 0.5.0/build7 (+1,77 %) incluyendo idiomas, cuenta/sync y todas las funciones nuevas. Android mínimo declarado API 24; target/compile 36, aceptación física prevista en Android 17. Firma original SHA-256: 72c065f017d9d53ead5934316a732424c2ae639beafc3c2937c4b89932b61310.
+
+SHA-256 APK:
+
+```text
+69c9d4d76243cb43156d9e949e26a30de1c13c8f59769163faddf786aff82495
+```
+
+**80/80 comprobaciones binarias PASS**: paquete/versión/código, firma, ARM64, bibliotecas, bundle idéntico al generado, fuentes/sonidos locales, permisos mínimos, backup/cleartext/OTA, proveedor/configuración/widget/service privado shortService y puente Expo realmente empaquetado. Los tres identificadores públicos Firebase/Google están presentes en el bundle del APK. No se incluye .env.local ni claves administrativas o firma privada en Git.
+
+**15 checks automatizados PASS**, **518 pruebas de código PASS** contando la regresión de permisos, **23 pruebas reales de reglas PASS**, **41 recorridos Web distintos cubiertos por la regresión completa y las repeticiones enfocadas PASS**. La última corrección nativa resolvió un marcador tools:node=remove de una compilación incremental anterior; su candidata rechazada se conservó fuera de releases y no se publicó. El APK final requiere y contiene WAKE_LOCK para las tareas breves del widget, sin permiso de acceso a datos adicional.
+
+Página pública desplegada correctamente por GitHub Pages; acceso Google real confirmado con una cuenta existente sin marcar la casilla de borrado, ejecutar purgado ni subir actividades. Las pruebas de borrado destructivo usan fixtures y emulador. npm audit actual: **59 nodos con avisos upstream (51 high, 8 moderate, 0 critical)**; las mitigaciones exactas de tooling/decodificación pasan sus pruebas y no se oculta ese inventario por versión.
+
+[Descargar APK](https://github.com/iAdamn/Dailoop/releases/download/v0.7.0/Dailoop-0.7.0-build8-arm64.apk) · [Release y checksum](https://github.com/iAdamn/Dailoop/releases/tag/v0.7.0) · [Guía física](PRUEBAS-0.7.0.md).
